@@ -1,0 +1,45 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+# Unity insists using LF for its text assets so prevent changing them to CRLF
+*.unity text eol=lf
+*.prefab text eol=lf
+*.asset text
+*.meta text eol=lf
+*.json text eol=lf
+*.mat text eol=lf
+*.mesh text eol=lf
+*.txt text eol=lf
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.svg binary
+*.blend binary
+*.blend1 binary
+*.tif binary
+*.tga binary
+*.fbx binary
+*.FBX binary
+*.ttf binary
+*.dll binary
+*.bundle binary
+*.so binary
+*.zip binary
+*.exr binary
+*.hdr binary
+*.ma binary
+*.mp3 binary
+*.obj binary
+*.OBJ binary
+*.TGA binary
+*.mdb binary
+*.pdf binary
+*.asset binary
+*.bytes binary
+*.aif binary
+*.bmp binary
+*.pdt binary
+*.psd binary
+*.sbsar binary
+*.entities binary
+*.wav binary
