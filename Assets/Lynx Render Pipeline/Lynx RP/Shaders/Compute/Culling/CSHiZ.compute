@@ -1,0 +1,219 @@
+#pragma kernel CSMain
+#pragma kernel CSSaveFrameData
+#pragma kernel CSReproject
+#include "../../../ShaderLibrary/Compute/CSCommon.hlsl"
+#include "../../../ShaderLibrary/Primitives.hlsl"
+#include "../../../ShaderLibrary/SpaceTransformations.hlsl"
+#include "CSHiZInput.hlsl"
+
+//=============================================================================//
+//                             HiZ Mip Reduction                               //
+//=============================================================================//
+float GetFarDepth(float4 samples)
+{
+    float depth;
+    if (UNITY_NEAR_CLIP_VALUE > 0)
+        depth = min(min(samples.x, samples.y), min(samples.z, samples.w));
+    else
+        depth = max(max(samples.x, samples.y), max(samples.z, samples.w));
+    return depth;
+}
+
+bool OverSampleDimension(uint id, uint sourceMipParam)
+{
+    bool result = false;
+    if (id * 2 + 2 < sourceMipParam - 1)
+        if (sourceMipParam % 2 != 0)  
+            result = true;
+    return result;
+}
+
+bool2 OverSample(uint2 id)
+{
+    bool2 overSample = bool2(false, false);
+    overSample.x = OverSampleDimension(id.x, (uint)_SourceMipParams.x);
+    overSample.y = OverSampleDimension(id.y, (uint)_SourceMipParams.y);
+    return overSample;
+}
+
+void GetSamplesManual(uint2 id, float2 uv, float2 pixelOffset, out float4 samples)
+{
+    float2 offset = pixelOffset;
+    bool2 overSample = OverSample(id);
+    
+    float2 uvLB = uv + float2(0.0,      0.0);
+    float2 uvRB = uv + float2(offset.x, 0.0);
+    float2 uvLT = uv + float2(0.0,      offset.y);
+    float2 uvRT = uv + float2(offset.x, offset.y);
+
+    float2 offsetExtra = float2(0,0);
+    
+    if(overSample.x)
+        offsetExtra.x = offset.x;
+
+    if(overSample.y)
+        offsetExtra.y = offset.y;
+
+    float2 uvRB2 = uvRB + float2(offsetExtra.x, 0.0);
+    float2 uvRTR = uvRT + float2(offsetExtra.x, 0.0);
+    float2 uvLT2 = uvLT + float2(0.0, offsetExtra.y);
+    float2 uvRTT = uvRT + float2(0.0, offsetExtra.y);
+    float2 uvLB2 = uvRT + float2(offsetExtra.x, offsetExtra.y);
+
+    uvLB *= _SourceMipParams.xy;
+    uvLT *= _SourceMipParams.xy;
+    uvRB *= _SourceMipParams.xy;
+    uvRT *= _SourceMipParams.xy;
+    uvLT2 *= _SourceMipParams.xy;
+    uvRTT *= _SourceMipParams.xy;
+    uvRB2 *= _SourceMipParams.xy;
+    uvRTR *= _SourceMipParams.xy;
+    uvLB2 *= _SourceMipParams.xy;
+
+    samples.x = GetFarDepth(float4(
+        _SourceMip.mips[_MipLevel-1][uvLT].x, _SourceMip.mips[_MipLevel-1][uvRT].x,
+        _SourceMip.mips[_MipLevel-1][uvLB].x, _SourceMip.mips[_MipLevel-1][uvRB].x
+    ));
+
+    samples.y = GetFarDepth(float4(
+        _SourceMip.mips[_MipLevel-1][uvRT].x, _SourceMip.mips[_MipLevel-1][uvRTR].x,
+        _SourceMip.mips[_MipLevel-1][uvRB].x, _SourceMip.mips[_MipLevel-1][uvRB2].x
+    ));
+
+    samples.z = GetFarDepth(float4(
+        _SourceMip.mips[_MipLevel-1][uvLT2].x, _SourceMip.mips[_MipLevel-1][uvRTT].x,
+        _SourceMip.mips[_MipLevel-1][uvLT].x, _SourceMip.mips[_MipLevel-1][uvRT].x
+    ));
+
+    samples.w = GetFarDepth(float4(
+        _SourceMip.mips[_MipLevel-1][uvRTT].x, _SourceMip.mips[_MipLevel-1][uvLB2].x,
+        _SourceMip.mips[_MipLevel-1][uvRT].x, _SourceMip.mips[_MipLevel-1][uvRTR].x
+    ));
+}
+
+void GetSamplesSampleLevel(uint2 id, float2 uv, out float4 samples)
+{
+    bool2 overSample = OverSample(id);
+
+    float4 samplesOG = float4(1, 1, 1, 1);
+    float4 samplesExtra = float4(1, 1, 1, 1);
+    float sampleF = 1;
+
+    samplesOG.x = _SourceMip.SampleLevel(point_Clamp_SourceMip, uv, _MipLevel-1, int2(0, 0)).x;
+    samplesOG.y = _SourceMip.SampleLevel(point_Clamp_SourceMip, uv, _MipLevel-1, int2(1, 0)).x;
+    samplesOG.z = _SourceMip.SampleLevel(point_Clamp_SourceMip, uv, _MipLevel-1, int2(0, 1)).x;
+    samplesOG.w = _SourceMip.SampleLevel(point_Clamp_SourceMip, uv, _MipLevel-1, int2(1, 1)).x;
+    
+    if(overSample.x)
+    {
+        samplesExtra.x = _SourceMip.SampleLevel(point_Clamp_SourceMip, uv, _MipLevel-1, int2(2, 0)).x;
+        samplesExtra.y = _SourceMip.SampleLevel(point_Clamp_SourceMip, uv, _MipLevel-1, int2(2, 1)).x;
+    }
+
+    if(overSample.y)
+    {
+        samplesExtra.z = _SourceMip.SampleLevel(point_Clamp_SourceMip, uv, _MipLevel-1, int2(0, 2)).x;
+        samplesExtra.w = _SourceMip.SampleLevel(point_Clamp_SourceMip, uv, _MipLevel-1, int2(1, 2)).x;
+    }
+
+    if (overSample.x && overSample.y)
+    {
+        sampleF  = _SourceMip.SampleLevel(point_Clamp_SourceMip, uv, _MipLevel-1, int2(2, 2)).x;
+        
+    }
+    
+    samples.x = GetFarDepth(samplesOG);
+    samples.y = GetFarDepth(samplesExtra);
+    samples.z = GetFarDepth(float4(samples.x, samples.y, sampleF, sampleF));
+    samples.w = samples.z;
+    
+}
+
+float4 HiZReduce(float2 uv, float2 pixelOffset, uint2 id)
+{
+    float4 depth = float4(1, 1, 1, 1);
+    float4 samples = float4(1, 1, 1, 1);
+
+    GetSamplesManual(id, uv, pixelOffset, samples);
+    depth.x = GetFarDepth(samples);
+    
+    GetSamplesSampleLevel(id, uv, samples);
+    depth.y = GetFarDepth(samples);
+    
+    depth.z = _SourceMip.GatherRed(linear_Clamp_SourceMip, uv);
+    return depth;
+}
+
+float2 PixelToUV(uint2 id, float2 paramsZW)
+{
+    float2 pixelCenter = (id + 0.5) * paramsZW; //(id * zw) + (zw * 0.5)
+    return pixelCenter;
+}
+
+[numthreads(16,16,1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+    if (id.x > (uint)_DestMipParams.x - 1 || id.y > (uint)_DestMipParams.y - 1)
+    {
+        return;
+    }
+    
+    float2 sourcePixelToUV = _SourceMipParams.zw;
+    float2 sourcePixelCenter = PixelToUV(id.xy*2, sourcePixelToUV);
+
+    float4 depth = HiZReduce(sourcePixelCenter, sourcePixelToUV, id.xy);
+    _DestMip[id.xy] = float4(sourcePixelCenter.x, sourcePixelCenter.y, 0, 0);
+    _DestMip[id.xy] = float4(depth.y, 0, 0, 0);
+}
+
+//=============================================================================//
+//                             HiZ Store Frame Data                            //
+//=============================================================================//
+[numthreads(1,1,1)]
+void CSSaveFrameData (uint3 id : SV_DispatchThreadID)
+{
+    StoreFrameMatrix(_MatrixVPInv, 0, 0);
+    StoreFrameExtras(0, 4, _CameraPosition);
+    StoreFrameExtras(0, 5, float3(_NearPlane, _FarPlane, 0));
+}
+
+//=============================================================================//
+//                                HiZ Reprojection                             //
+//=============================================================================//
+[numthreads(16,16,1)]
+void CSReproject (uint3 id : SV_DispatchThreadID)
+{
+    if (id.x > (uint)_PrevFrameDepthParams.x - 1 || id.y > (uint)_PrevFrameDepthParams.y - 1)
+    {
+        return;
+    }
+    
+    float4x4 preMatVPI = ReadFrameMatrix(0, 0);
+    float2 prevClipPlanes = ReadFrameExtras(0, 5).xy;
+    float prevNearPlane = prevClipPlanes.x;
+    float prevFarPlane = prevClipPlanes.y;
+
+    float prevDepth = _PrevFrameDepth[id.xy];
+    float w = LinearizeDepth(prevDepth, prevFarPlane, prevNearPlane);
+
+    float3 prevPositionSS = float3(PixelToUV(id.xy, _PrevFrameDepthParams.zw), prevDepth);
+    float3 positionWS = NDCToWorld(ScreenToNDC(prevPositionSS), preMatVPI, w);
+    float3 positionSS = NDCToScreen(WorldToNDC(positionWS, _MatrixVP));
+    
+    float projectedDepth = positionSS.z;
+    
+    uint depthValidThisFrame = PositionSSInBounds(positionSS);
+    if (!depthValidThisFrame)
+        projectedDepth = 0.0;
+    
+    uint2 projectedCoords = uint2(positionSS.x * _PrevFrameDepthParams.x, positionSS.y * _PrevFrameDepthParams.y);
+    _ProjectedDepthTexture[projectedCoords] = projectedDepth;// !depthValidThisFrame;
+    
+    Point quad;
+    quad.position = positionWS;
+    quad.color = positionSS * 0.2;// float3(projectedDepth, !depthValidThisFrame, 0) * 0.2;
+
+    uint i = id.x + id.y * _PrevFrameDepthParams.x;
+    _HiZReprojectionPointBuffer[i] = quad;
+}
+

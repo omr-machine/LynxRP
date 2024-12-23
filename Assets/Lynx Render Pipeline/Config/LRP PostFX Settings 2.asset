@@ -1,0 +1,53 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fa60a67e68f4b332f8ec0a5b74ccee9d, type: 3}
+  m_Name: LRP PostFX Settings 2
+  m_EditorClassIdentifier: 
+  shader: {fileID: 4800000, guid: f65fc17b2eafe1c5cbe0ea1580408ec0, type: 3}
+  bloom:
+    ignoreRenderScale: 1
+    maxIterations: 3
+    downscaleLimit: 2
+    bicubicUpsampling: 1
+    threshold: 1.99
+    thresholdKnee: 0.656
+    intensity: 1.59
+    fadeFireflies: 1
+    mode: 1
+    scatter: 0.288
+  toneMapping:
+    mode: 1
+  colorAdjustments:
+    postExposure: 0.22
+    contrast: 30
+    colorFilter: {r: 0.9226414, g: 0.9226414, b: 0.9226414, a: 1}
+    hueShift: -0
+    saturation: 16
+  whiteBalance:
+    temperature: 42
+    tint: 18
+  splitToning:
+    shadows: {r: 0.5019608, g: 0.5019608, b: 0.5019608, a: 1}
+    highlights: {r: 0.5019608, g: 0.5019608, b: 0.5019608, a: 1}
+    balance: 0
+  channelMixer:
+    red: {x: 1, y: 0, z: 0}
+    green: {x: 0, y: 1, z: 0}
+    blue: {x: 0, y: 0, z: 1}
+  shadowsMidtonesHighlights:
+    shadows: {r: 0.8017073, g: 0.8221194, b: 0.9452831, a: 1}
+    midtones: {r: 0.8698114, g: 0.849297, b: 0.8660504, a: 1}
+    highlights: {r: 0.9150943, g: 0.9063783, b: 0.82444817, a: 1}
+    shadowsStart: 0
+    shadowsEnd: 0.48
+    highlightsStart: 0.45
+    highLightsEnd: 1

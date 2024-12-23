@@ -1,0 +1,593 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSComposeTriangles  // 0
+#pragma kernel CSVote              // 1
+#pragma kernel CSScan              // 2
+#pragma kernel CSGroupSum          // 3
+#pragma kernel CSCompact           // 4
+#pragma kernel CSScanSteele        // 5
+#pragma kernel CSPrepareIndirect   // 6
+#pragma kernel CSClearDebugTexture // 7
+
+#pragma enable_d3d11_debug_symbols
+#pragma enable_vulkan_debug_symbols
+
+#include <HLSLSupport.cginc>
+
+#define NumThreadsXMax 256
+#define NumThreadsXMaxGroups 32
+
+#define VerticesInTri 3
+
+uint _IndexSize;
+uint _NumOfGroups;
+
+float4x4 _MatrixM;
+float4x4 _MatrixV;
+float4x4 _MatrixP;
+float4x4 _MatrixVP;
+float4x4 _MatrixVPInv;
+
+float4 _ScreenParams;
+float4 _ProjectionParams;
+
+float3 _CameraPosition;
+float _NearPlane;
+float _FarPlane;
+
+struct Vertex
+{
+    float3 position;
+    float3 normal;
+    float4 color;
+    float2 baseUV;
+};
+
+struct Triangle
+{
+    Vertex v1;
+    Vertex v2;
+    Vertex v3;
+};
+
+struct BBox
+{
+    float3 minCorner;
+    float3 maxCorner;
+    float length;
+};
+
+struct Line
+{
+    float3 position;
+    float3 color;
+};
+
+struct Frustum
+{
+    float4 left;
+    float4 right;
+    float4 top;
+    float4 bottom;
+    float4 near;
+    float4 far;
+};
+
+
+RWStructuredBuffer<Vertex> _IndexBuffer;
+RWStructuredBuffer<Triangle> _TriangleBuffer;
+
+RWStructuredBuffer<BBox> _BBoxBuffer;
+RWStructuredBuffer<Line> _QuadBuffer;
+
+RWStructuredBuffer<uint> _VoteBuffer;
+RWStructuredBuffer<uint> _ScanBuffer;
+RWStructuredBuffer<uint> _ScanSumBuffer;
+RWStructuredBuffer<uint> _GroupSumBuffer;
+RWStructuredBuffer<uint> _GroupScanBuffer;
+
+RWStructuredBuffer<uint> _ArgsBuffer;
+RWStructuredBuffer<uint> _ArgsLineBuffer;
+RWStructuredBuffer<uint> _ArgsQuadBuffer;
+
+RWStructuredBuffer<Vertex> _VertexPassBuffer;
+RWStructuredBuffer<Line> _BBoxPassBuffer;
+RWStructuredBuffer<Line> _QuadPassBuffer;
+
+RWTexture2D<float4> _CullDebugTexture;
+ 
+bool CheckForNaNOrInfinity(float3 a, float number)
+{
+    if (!(a.x < 0.f || a.x > 0.f || a.x == 0.f))
+        return true;
+    if (!(a.y < 0.f || a.y > 0.f || a.y == 0.f))
+        return true;
+    if (!(a.z < 0.f || a.z > 0.f || a.z == 0.f))
+        return true;
+    
+    if (a.x >= number || a.y >= number || a.z >= number)
+        return true;
+
+    if (a.x <= -number || a.y <= -number || a.x <= -number)
+        return true;
+
+    return false;
+}
+
+bool AABBOverlap(float3 minA, float3 maxA, float3 minB, float3 maxB) {
+    return (minA.x <= maxB.x && minB.x <= maxA.x) &&
+           (minA.y <= maxB.y && minB.y <= maxA.y) &&
+           (minA.z <= maxB.z && minB.z <= maxA.z);
+}
+
+void GetCorners(BBox bbox, out float4 corners[8])
+{
+    float3 minPos = bbox.minCorner;
+    float3 maxPos = bbox.maxCorner;
+    corners[0] = float4(minPos.x, minPos.y, minPos.z, 1.0);
+    corners[1] = float4(minPos.x, minPos.y, maxPos.z, 1.0);
+    corners[2] = float4(minPos.x, maxPos.y, minPos.z, 1.0);
+    corners[3] = float4(minPos.x, maxPos.y, maxPos.z, 1.0);
+    corners[4] = float4(maxPos.x, minPos.y, minPos.z, 1.0);
+    corners[5] = float4(maxPos.x, minPos.y, maxPos.z, 1.0);
+    corners[6] = float4(maxPos.x, maxPos.y, minPos.z, 1.0);
+    corners[7] = float4(maxPos.x, maxPos.y, maxPos.z, 1.0);
+}
+
+void DebugTextureFill(float3 clipspaces[3], bool culled)
+{
+    uint2 coord[3];
+    coord[0] = uint2(clipspaces[0].x * _ScreenParams.x, clipspaces[0].y * _ScreenParams.y);
+    coord[1] = uint2(clipspaces[1].x * _ScreenParams.x, clipspaces[1].y * _ScreenParams.y);
+    coord[2] = uint2(clipspaces[2].x * _ScreenParams.x, clipspaces[2].y * _ScreenParams.y);
+
+    float4 debugColor = float4(1, 0, 0, 0);
+    if (culled)
+        debugColor = float4(0, 0, 0, 0);
+    
+    _CullDebugTexture[coord[0]] = debugColor;
+    _CullDebugTexture[coord[1]] = debugColor;
+    _CullDebugTexture[coord[2]] = debugColor;
+}
+
+Frustum ExtractFrustumPlanes(matrix mat)
+{
+    Frustum frustum;
+    float left[4]; float right[4];
+    float bottom[4]; float top[4];
+    float near[4]; float far[4];
+
+    UNITY_UNROLL
+    for (int i = 4; i--; )
+    {
+        left[i]   = mat[i][3] + mat[i][0];
+        right[i]  = mat[i][3] - mat[i][0];
+        bottom[i] = mat[i][3] + mat[i][1];
+        top[i]    = mat[i][3] - mat[i][1];
+        near[i]   = mat[i][3] + mat[i][2];
+        far[i]    = mat[i][3] - mat[i][2];
+    }
+
+    frustum.left.x   = left[0];   frustum.left.y   = left[1];
+    frustum.left.z   = left[2];   frustum.left.w   = left[3];
+    frustum.right.x  = right[0];  frustum.right.y  = right[1];
+    frustum.right.z  = right[2];  frustum.right.w  = right[3];
+    frustum.top.x    = top[0];    frustum.top.y    = top[1];
+    frustum.top.z    = top[2];    frustum.top.w    = top[3];
+    frustum.bottom.x = bottom[0]; frustum.bottom.y = bottom[1];
+    frustum.bottom.z = bottom[2]; frustum.bottom.w = bottom[3];
+    frustum.near.x   = near[0];   frustum.near.y   = near[1];
+    frustum.near.z   = near[2];   frustum.near.w   = near[3];
+    frustum.far.x    = far[0];    frustum.far.y    = far[1];
+    frustum.far.z    = far[2];    frustum.far.w    = far[3];
+
+    return frustum;
+}
+
+bool BoxInFrustum(Frustum frustum, BBox bbox)
+{
+    float3 mPlanes[6];
+    mPlanes[0] = frustum.left; mPlanes[1] = frustum.right;
+    mPlanes[2] = frustum.top; mPlanes[3] = frustum.bottom;
+    mPlanes[4] = frustum.near; mPlanes[5] = frustum.far;
+
+    float3 mMin = bbox.minCorner;
+    float3 mMax = bbox.maxCorner;
+    
+    UNITY_UNROLL
+    for (int i = 0; i < 4; i++)
+    {
+        int inView = 0;
+        inView += dot(mPlanes[i], float4(mMin.x, mMin.y, mMin.z, 1.0f)) < 0.0 ? 1 : 0;
+        inView += dot(mPlanes[i], float4(mMax.x, mMin.y, mMin.z, 1.0f)) < 0.0 ? 1 : 0;
+        inView += dot(mPlanes[i], float4(mMin.x, mMax.y, mMin.z, 1.0f)) < 0.0 ? 1 : 0;
+        inView += dot(mPlanes[i], float4(mMin.x, mMin.y, mMax.z, 1.0f)) < 0.0 ? 1 : 0;
+        inView += dot(mPlanes[i], float4(mMax.x, mMax.y, mMin.z, 1.0f)) < 0.0 ? 1 : 0;
+        inView += dot(mPlanes[i], float4(mMax.x, mMin.y, mMax.z, 1.0f)) < 0.0 ? 1 : 0;
+        inView += dot(mPlanes[i], float4(mMin.x, mMax.y, mMax.z, 1.0f)) < 0.0 ? 1 : 0;
+        inView += dot(mPlanes[i], float4(mMax.x, mMax.y, mMax.z, 1.0f)) < 0.0 ? 1 : 0;
+        if (inView == 8) return false;
+    }
+    return true;
+}
+
+void CullFrustum5 (BBox bbox, out bool cull)
+{
+    float3 clipMin = float3(0, 0, _NearPlane);
+    float3 clipMax = float3(1, 1, _FarPlane);
+
+    float3 clipMinV = float3(-1, -1, _NearPlane);
+    float3 clipMaxV = float3(1, 1, _FarPlane);
+
+    float bigNumber = 1/0;//10000;//abs(_FarPlane - _NearPlane);
+    bool inView = AABBOverlap(bbox.minCorner, bbox.maxCorner, clipMinV, clipMaxV);
+    bool checkNanAndInf = CheckForNaNOrInfinity(bbox.minCorner, bigNumber) || CheckForNaNOrInfinity(bbox.maxCorner, bigNumber);
+    cull = !(inView && !checkNanAndInf);
+    Frustum frustum = ExtractFrustumPlanes(_MatrixVP);
+    if (!cull)
+        inView = BoxInFrustum(frustum, bbox);
+    cull = !inView;
+}
+
+uint IsCameraOutsideObjBounds(float3 pos, float3 minPos, float3 maxPos)
+{
+    float boundsSize = distance(maxPos, minPos);
+    return ((distance(pos, maxPos) > boundsSize)
+            + (distance(pos, minPos) > boundsSize));
+}
+
+uint IsVisibleAfterFrustumCulling(float4 clipPos)
+{
+    clipPos.w *= _ProjectionParams.x; // * -1;
+    return (
+        clipPos.z > clipPos.w 
+        || clipPos.x < -clipPos.w || clipPos.w < clipPos.x
+        || clipPos.y < -clipPos.w || clipPos.w < clipPos.y
+        ) ? 0 : 1;
+}
+
+void CullFrustum (BBox bbox, out bool cull)
+{
+    float3 minPos = bbox.minCorner;
+    float3 maxPos = bbox.maxCorner;
+
+    float4 boxCorners[8];
+    GetCorners(bbox, boxCorners);
+    
+    uint isInFrustum = 0;
+
+    [unroll]
+    for (int i = 0; i < 8; i++)
+    {
+        float4 clipPos = mul(_MatrixVP, boxCorners[i]);
+        isInFrustum = saturate(isInFrustum + IsVisibleAfterFrustumCulling(clipPos));
+    }
+
+    uint isOutsideBounds = 1;
+    if (IsCameraOutsideObjBounds(_CameraPosition, minPos, maxPos))
+    {
+        isOutsideBounds *= isInFrustum; // Do we pass the frustum culling...?
+    }
+
+    cull = !isOutsideBounds;
+}
+
+void CullOrientation(uint idx, float4 viewspaces[3], out bool cull)
+{
+    float4 positionA = viewspaces[0]; //float4 positionBA = float4(clipspaces[0].xyz, 1.0);
+    float4 positionB = viewspaces[1];
+    float4 positionC = viewspaces[2];
+    float det = determinant(float3x3(positionA.xyw, positionB.xyw, positionC.xyw));
+    cull = det <= 0.0;
+}
+
+void TriWorldToView(float3 positionsWS[3], out float4 viewspaces[3])
+{
+    UNITY_UNROLL
+    for (uint i = 0; i < VerticesInTri; i++)
+    {
+        float4 position = float4(positionsWS[i].xyz, 1.0);
+        float4 viewspace = mul(_MatrixVP, position);
+        viewspaces[i] = viewspace;
+    }
+}
+
+void TriViewToProjection(float4 viewspaces[3], out float3 clipspaces[3])
+{
+    UNITY_UNROLL
+    for (uint i = 0; i < VerticesInTri; i++)
+    {
+        float3 clipspace = viewspaces[i].xyz;
+        clipspace /= -viewspaces[i].w;
+        // clipspace.x = clipspace.x / 2.0f + 0.5f; // clipspace.x = (viewspace.x / viewspace.w) * 0.5f + 0.5f;
+        // clipspace.y = clipspace.y / 2.0f + 0.5f; // clipspace.y = (viewspace.y / viewspace.w) * 0.5f + 0.5f;
+        clipspace.z = -viewspaces[i].w; // clipspace.z = viewspace.z / viewspace.w;
+        clipspaces[i] = clipspace;
+    }
+}
+
+void GetBBox(float3 positions[3], out BBox bbox)
+{
+    bbox.minCorner = min(positions[0], min(positions[1], positions[2]));
+    bbox.maxCorner = max(positions[0], max(positions[1], positions[2]));
+    bbox.length = abs(distance(bbox.maxCorner, bbox.minCorner));
+}
+
+uint CullTests (uint idx, float3 positionsWS[3])
+{
+    float4 viewspaces[3]; TriWorldToView(positionsWS, viewspaces);
+    float3 clipspaces[3]; TriViewToProjection(viewspaces, clipspaces);
+
+    BBox bboxWS; GetBBox(positionsWS, bboxWS);
+    BBox bboxVP; GetBBox(clipspaces, bboxVP);
+    
+    uint triCull = idx >= _IndexSize;
+    if (triCull == 0)
+    {
+        CullOrientation(idx, viewspaces, triCull);
+        if (triCull != 1)
+            CullFrustum(bboxWS, triCull);
+    }
+
+    DebugTextureFill(clipspaces, triCull);
+    _BBoxBuffer[idx] = bboxWS;
+
+    return triCull;
+}
+
+[numthreads(NumThreadsXMax,1,1)]
+void CSVote (uint3 id : SV_DispatchThreadID)
+{ 
+    float3 positions[3];
+    positions[0] = _TriangleBuffer[id.x].v1.position;
+    positions[1] = _TriangleBuffer[id.x].v2.position;
+    positions[2] = _TriangleBuffer[id.x].v3.position;
+    
+    uint triCull = CullTests(id.x, positions);
+    
+    if (triCull == 0)
+    {
+        _VoteBuffer[id.x] = 1;
+    }
+    else
+    {
+        _VoteBuffer[id.x] = 0;
+    }
+}
+
+groupshared uint temp[NumThreadsXMax];
+[numthreads(NumThreadsXMax/2,1,1)]
+void CSScan (uint3 id : SV_DispatchThreadID, uint3 group : SV_GroupID, uint3 numThread : SV_GroupThreadID)
+{
+    uint voteBufferA = _VoteBuffer[2 * id.x];
+    uint voteBufferB = _VoteBuffer[2 * id.x + 1];
+    if (id.x >= _IndexSize)
+    {
+        voteBufferA = 0;
+        voteBufferB = 0;
+    }
+    int offset = 1;
+    temp[2 * numThread.x] = voteBufferA;
+    temp[2 * numThread.x + 1] = voteBufferB;
+    int numElements = NumThreadsXMax;
+    int d;
+
+    for (d = numElements; d > 0; d >>= 1)
+    {
+        GroupMemoryBarrierWithGroupSync();
+        
+        if (numThread.x < (uint)d)
+        {
+            int ai = offset * (2 * numThread.x + 1) - 1;
+            int bi = offset * (2 * numThread.x + 2) - 1;
+            temp[bi] += temp[ai];
+        }
+
+        offset *= 2;
+    }
+
+    if (numThread.x == 0)
+    {
+        _GroupSumBuffer[group.x] = temp[numElements - 1];
+        temp[numElements - 1] = 0;
+    }
+
+    for (d = 1; d < numElements; d *= 2)
+    {
+        offset >>= 1;
+
+        GroupMemoryBarrierWithGroupSync();
+        if (numThread.x < (uint)d)
+        {
+            int ai = offset * (2 * numThread.x + 1) - 1;
+            int bi = offset * (2 * numThread.x + 2) - 1;
+            int t = temp[ai];
+            temp[ai] = temp[bi];
+            temp[bi] += t;
+        }
+    }
+
+    GroupMemoryBarrierWithGroupSync();
+    
+    _ScanBuffer[2 * id.x] = temp[2 * numThread.x];
+    _ScanBuffer[2 * id.x + 1] = temp[2 * numThread.x + 1];
+}
+
+groupshared uint grouptemp[NumThreadsXMaxGroups];
+[numthreads(NumThreadsXMaxGroups/2,1,1)]
+void CSGroupSum (uint3 id : SV_DispatchThreadID, uint3 group : SV_GroupID, uint3 numThread : SV_GroupThreadID)
+{
+    int offset = 1;
+    grouptemp[2 * numThread.x] = _GroupSumBuffer[2 * id.x];
+    grouptemp[2 * numThread.x + 1] = _GroupSumBuffer[2 * id.x + 1];
+    int d;
+
+    for(d = _NumOfGroups >> 1; d > 0; d >>= 1)
+    {
+        GroupMemoryBarrierWithGroupSync();
+
+        if (numThread.x < (uint)d)
+        {
+            int ai = offset * (2 * numThread.x + 1) - 1;
+            int bi = offset * (2 * numThread.x + 2) - 1;
+            grouptemp[bi] += grouptemp[ai];
+        }
+        
+        offset *= 2;
+    }
+
+    if (id.x == 0)
+    {
+        grouptemp[_NumOfGroups - 1] = 0;
+    }
+
+    for (d = 1; (uint)d < _NumOfGroups; d *= 2)
+    {
+        offset >>= 1;
+        
+        GroupMemoryBarrierWithGroupSync();
+        if (id.x < (uint)d)
+        {
+            int ai = offset * (2 * numThread.x + 1) - 1;
+            int bi = offset * (2 * numThread.x + 2) - 1;
+            int t = grouptemp[ai];
+            grouptemp[ai] = grouptemp[bi];
+            grouptemp[bi] += t;
+        }
+    }
+
+    GroupMemoryBarrierWithGroupSync();
+
+    _GroupScanBuffer[2 * id.x] = grouptemp[2 * numThread.x];
+    _GroupScanBuffer[2 * id.x + 1] = grouptemp[2 * numThread.x + 1];
+    
+}
+
+[numthreads(NumThreadsXMax,1,1)]
+void CSCompact (uint3 id : SV_DispatchThreadID, uint3 group : SV_GroupID, uint3 numThread : SV_GroupThreadID)
+{
+    uint groupSum = group.x > 0 ? _GroupScanBuffer[group.x] : 0;
+
+    if (_VoteBuffer[id.x] == 1)
+    {
+        // InterlockedAdd(_ArgsBuffer[0], 1 * VerticesInTri);
+        Vertex vertices[3];
+        
+        vertices[0] = _TriangleBuffer[id.x].v1;
+        vertices[1] = _TriangleBuffer[id.x].v2;
+        vertices[2] = _TriangleBuffer[id.x].v3;
+        
+        uint index = (_ScanBuffer[id.x] + groupSum) * 3;
+        _VertexPassBuffer[index] = vertices[0];
+        _VertexPassBuffer[index + 1] = vertices[1];
+        _VertexPassBuffer[index + 2] = vertices[2];
+    }
+
+    _ScanSumBuffer[id.x] = (_ScanBuffer[id.x] + groupSum);
+}
+
+groupshared uint tempsteele[NumThreadsXMax];
+[numthreads(NumThreadsXMax,1,1)]
+void CSScanSteele (uint3 id : SV_DispatchThreadID, uint3 group : SV_GroupID, uint3 numThread : SV_GroupThreadID)
+{
+    tempsteele[numThread.x] = _VoteBuffer[numThread.x];
+    GroupMemoryBarrierWithGroupSync();
+    
+    uint offset = 0;
+    uint totalElements = _IndexSize;
+    for (int d = 1; d < (int)totalElements; d <<= 1) {
+        if ((id.x & d) != 0 && numThread.x < totalElements) {
+            tempsteele[numThread.x] +=
+                tempsteele[((numThread.x >> offset) << offset) - 1];
+        }
+        GroupMemoryBarrierWithGroupSync();
+        offset++;
+    }
+    GroupMemoryBarrierWithGroupSync();
+
+    _ScanSumBuffer[numThread.x] = tempsteele[numThread.x];
+    
+}
+
+[numthreads(NumThreadsXMax,1,1)]
+void CSComposeTriangles (uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= _IndexSize)
+    {
+        return;
+    }
+    
+    uint triIndexStart = id.x * VerticesInTri;
+    Vertex vertices[3];
+    
+    UNITY_UNROLL // [unroll]
+    for (uint i = 0; i < VerticesInTri; i++)
+    {
+        Vertex vertex;
+        vertex.position = _IndexBuffer[triIndexStart + i].position;
+        vertex.normal = _IndexBuffer[triIndexStart + i].normal;
+        vertex.color = _IndexBuffer[triIndexStart + i].color;
+        vertex.baseUV = _IndexBuffer[triIndexStart + i].baseUV;
+        vertices[i] = vertex;
+    }
+    
+    Triangle singleTriangle;
+    singleTriangle.v1 = vertices[0];
+    singleTriangle.v2 = vertices[1];
+    singleTriangle.v3 = vertices[2];
+    
+    _TriangleBuffer[id.x] = singleTriangle;
+}
+
+groupshared uint interLockIndex;
+groupshared uint interLockIndexLine;
+[numthreads(NumThreadsXMax,1,1)]
+void CSPrepareIndirect (uint3 id : SV_DispatchThreadID)
+{
+    if (id.x == 0)
+    {
+        interLockIndex = 0;
+    }
+
+    uint culled = 1 - _VoteBuffer[id.x];
+    if (culled)
+    {
+        return;
+    }
+
+    Vertex vertices[3];
+    vertices[0] = _TriangleBuffer[id.x].v1;
+    vertices[1] = _TriangleBuffer[id.x].v2;
+    vertices[2] = _TriangleBuffer[id.x].v3;
+    uint index;
+    InterlockedAdd(_ArgsBuffer[0], 1 * VerticesInTri, index);
+    
+    _VertexPassBuffer[index] = vertices[0];
+    _VertexPassBuffer[index + 1] = vertices[1];
+    _VertexPassBuffer[index + 2] = vertices[2];
+
+    uint indexLine;
+    InterlockedAdd(_ArgsLineBuffer[0], 1 * 2, indexLine);
+    float3 MaxCorner = _BBoxBuffer[id.x].minCorner;
+    float length = _BBoxBuffer[id.x].length;
+    float3 otherCorner = float3(MaxCorner.x, MaxCorner.y + length, MaxCorner.z);
+    _BBoxPassBuffer[indexLine].position = _BBoxBuffer[id.x].minCorner;
+    _BBoxPassBuffer[indexLine].color = float3(0, 1, 0);
+    _BBoxPassBuffer[indexLine + 1].position = otherCorner;//_BBoxBuffer[id.x].MaxCorner;
+    _BBoxPassBuffer[indexLine + 1].color = float3(0, 0, 1);
+}
+
+[numthreads(16,16,1)]
+void CSClearDebugTexture(uint3 id : SV_DispatchThreadID)
+{
+    _CullDebugTexture[id.xy] = float4(0,0,0,1);
+}
+
+// [numthreads(1,1,1)]
+// void CSDebugBox(uint3 id : SV_DispatchThreadID)
+// {
+//     uint index;
+//     InterlockedAdd(_ArgsBuffer[0], 1 * VerticesInTri, index);
+//     _VertexPassBuffer[index] = vertices[0];
+//     _VertexPassBuffer[index + 1] = vertices[1];
+//     _VertexPassBuffer[index + 2] = vertices[2];
+// }
