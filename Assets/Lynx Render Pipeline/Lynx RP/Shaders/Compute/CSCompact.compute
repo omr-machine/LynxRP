@@ -1,0 +1,163 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSScan              // 0
+#pragma kernel CSGroupSum          // 1
+#pragma kernel CSCompact           // 2
+#pragma kernel CSScanSteele        // 3
+
+#pragma enable_d3d11_debug_symbols
+#pragma enable_vulkan_debug_symbols
+#include "CSCompactInput.hlsl"
+
+groupshared uint temp[NumThreadsXMax];
+[numthreads(NumThreadsXMax/2,1,1)]
+void CSScan (uint3 id : SV_DispatchThreadID, uint3 group : SV_GroupID, uint3 numThread : SV_GroupThreadID)
+{
+    uint voteBufferA = _VoteBuffer[2 * id.x];
+    uint voteBufferB = _VoteBuffer[2 * id.x + 1];
+    if (id.x >= _IndexSize)
+    {
+        voteBufferA = 0;
+        voteBufferB = 0;
+    }
+    int offset = 1;
+    temp[2 * numThread.x] = voteBufferA;
+    temp[2 * numThread.x + 1] = voteBufferB;
+    int numElements = NumThreadsXMax;
+    int d;
+
+    for (d = numElements; d > 0; d >>= 1)
+    {
+        GroupMemoryBarrierWithGroupSync();
+        
+        if (numThread.x < (uint)d)
+        {
+            int ai = offset * (2 * numThread.x + 1) - 1;
+            int bi = offset * (2 * numThread.x + 2) - 1;
+            temp[bi] += temp[ai];
+        }
+
+        offset *= 2;
+    }
+
+    if (numThread.x == 0)
+    {
+        _GroupSumBuffer[group.x] = temp[numElements - 1];
+        temp[numElements - 1] = 0;
+    }
+
+    for (d = 1; d < numElements; d *= 2)
+    {
+        offset >>= 1;
+
+        GroupMemoryBarrierWithGroupSync();
+        if (numThread.x < (uint)d)
+        {
+            int ai = offset * (2 * numThread.x + 1) - 1;
+            int bi = offset * (2 * numThread.x + 2) - 1;
+            int t = temp[ai];
+            temp[ai] = temp[bi];
+            temp[bi] += t;
+        }
+    }
+
+    GroupMemoryBarrierWithGroupSync();
+    
+    _ScanBuffer[2 * id.x] = temp[2 * numThread.x];
+    _ScanBuffer[2 * id.x + 1] = temp[2 * numThread.x + 1];
+}
+
+groupshared uint grouptemp[NumThreadsXMaxGroups];
+[numthreads(NumThreadsXMaxGroups/2,1,1)]
+void CSGroupSum (uint3 id : SV_DispatchThreadID, uint3 group : SV_GroupID, uint3 numThread : SV_GroupThreadID)
+{
+    int offset = 1;
+    grouptemp[2 * numThread.x] = _GroupSumBuffer[2 * id.x];
+    grouptemp[2 * numThread.x + 1] = _GroupSumBuffer[2 * id.x + 1];
+    int d;
+
+    for(d = _NumOfGroups >> 1; d > 0; d >>= 1)
+    {
+        GroupMemoryBarrierWithGroupSync();
+
+        if (numThread.x < (uint)d)
+        {
+            int ai = offset * (2 * numThread.x + 1) - 1;
+            int bi = offset * (2 * numThread.x + 2) - 1;
+            grouptemp[bi] += grouptemp[ai];
+        }
+        
+        offset *= 2;
+    }
+
+    if (id.x == 0)
+    {
+        grouptemp[_NumOfGroups - 1] = 0;
+    }
+
+    for (d = 1; (uint)d < _NumOfGroups; d *= 2)
+    {
+        offset >>= 1;
+        
+        GroupMemoryBarrierWithGroupSync();
+        if (id.x < (uint)d)
+        {
+            int ai = offset * (2 * numThread.x + 1) - 1;
+            int bi = offset * (2 * numThread.x + 2) - 1;
+            int t = grouptemp[ai];
+            grouptemp[ai] = grouptemp[bi];
+            grouptemp[bi] += t;
+        }
+    }
+
+    GroupMemoryBarrierWithGroupSync();
+
+    _GroupScanBuffer[2 * id.x] = grouptemp[2 * numThread.x];
+    _GroupScanBuffer[2 * id.x + 1] = grouptemp[2 * numThread.x + 1];
+    
+}
+
+[numthreads(NumThreadsXMax,1,1)]
+void CSCompact (uint3 id : SV_DispatchThreadID, uint3 group : SV_GroupID, uint3 numThread : SV_GroupThreadID)
+{
+    uint groupSum = group.x > 0 ? _GroupScanBuffer[group.x] : 0;
+
+    if (_VoteBuffer[id.x] == 1)
+    {
+        // InterlockedAdd(_ArgsBuffer[0], 1 * VerticesInTri);
+        Vertex vertices[3];
+        
+        vertices[0] = _TriangleBuffer[id.x].v1;
+        vertices[1] = _TriangleBuffer[id.x].v2;
+        vertices[2] = _TriangleBuffer[id.x].v3;
+        
+        uint index = (_ScanBuffer[id.x] + groupSum) * 3;
+        _VertexPassBuffer[index] = vertices[0];
+        _VertexPassBuffer[index + 1] = vertices[1];
+        _VertexPassBuffer[index + 2] = vertices[2];
+    }
+
+    _ScanSumBuffer[id.x] = (_ScanBuffer[id.x] + groupSum);
+}
+
+groupshared uint tempsteele[NumThreadsXMax];
+[numthreads(NumThreadsXMax,1,1)]
+void CSScanSteele (uint3 id : SV_DispatchThreadID, uint3 group : SV_GroupID, uint3 numThread : SV_GroupThreadID)
+{
+    tempsteele[numThread.x] = _VoteBuffer[numThread.x];
+    GroupMemoryBarrierWithGroupSync();
+    
+    uint offset = 0;
+    uint totalElements = _IndexSize;
+    for (int d = 1; d < (int)totalElements; d <<= 1) {
+        if ((id.x & d) != 0 && numThread.x < totalElements) {
+            tempsteele[numThread.x] +=
+                tempsteele[((numThread.x >> offset) << offset) - 1];
+        }
+        GroupMemoryBarrierWithGroupSync();
+        offset++;
+    }
+    GroupMemoryBarrierWithGroupSync();
+
+    _ScanSumBuffer[numThread.x] = tempsteele[numThread.x];
+    
+}

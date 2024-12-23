@@ -1,0 +1,71 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0808788a460570311a0b2cf4cb8459f3, type: 3}
+  m_Name: Lynx RP
+  m_EditorClassIdentifier: 
+  settings:
+    pipelineType: 0
+    cameraBuffer:
+      allowHDR: 1
+      copyColor: 1
+      copyColorReflection: 0
+      copyDepth: 1
+      copyDepthReflection: 0
+      renderScale: 1.3333
+      bicubicRescaling: 1
+      fxaa:
+        enabled: 0
+        fixedThreshold: 0.0833
+        relativeThreshold: 0.191
+        subpixelBlending: 0.75
+        quality: 1
+      msaa:
+        enabled: 0
+        msaaType: 1
+        msaaSamples: 8
+        msaaStencilShader: {fileID: 4800000, guid: d18bd3481fd77b32d84ec42e33e5247b,
+          type: 3}
+        msaaFillShader: {fileID: 4800000, guid: d7586aa57150af074a2ed88b16f2cc11,
+          type: 3}
+        msaaDownscaleShader: {fileID: 4800000, guid: f61ca541faca27aae8320f5b4c60b9bc,
+          type: 3}
+    useSRPBatcher: 1
+    forwardPlus:
+      tileSize: 64
+      maxLightsPerTile: 64
+    shadows:
+      filterQuality: 1
+      maxDistance: 35.3
+      distanceFade: 0.1
+      directional:
+        atlasSize: 4096
+        cascadeCount: 4
+        cascadeRatio1: 0.1
+        cascadeRatio2: 0.25
+        cascadeRatio3: 0.5
+        cascadeFade: 0.1
+        cascadeBlend: 1
+      other:
+        atlasSize: 4096
+    postFXSettings: {fileID: 11400000, guid: 10324a0eee35deeb68cf254a727f5ed6, type: 2}
+    colorLUTResolution: 32
+    cameraRendererShader: {fileID: 4800000, guid: 827b37ab6cb8cd27494a65651ccad739,
+      type: 3}
+    cameraDebuggerShader: {fileID: 4800000, guid: e24ab36d0058c6cf7ad4623a2a6d957e,
+      type: 3}
+    deferredShader: {fileID: 4800000, guid: 0af0f4325dafe112ea60f7f46be28d3b, type: 3}
+    csCullShader: {fileID: 7200000, guid: 0e394126bc9cbe19da66067b6179f482, type: 3}
+    csCompactShader: {fileID: 7200000, guid: 1a168c7e328fcd82eab67ea9971975ce, type: 3}
+    csHiZShader: {fileID: 7200000, guid: dbfde1f4070f8d73d90ab6a821740df4, type: 3}
+    cullShader: {fileID: 4800000, guid: 9703176fe56f2accc88b619ffe4099cd, type: 3}
+    hiZShader: {fileID: 4800000, guid: f6003df22d50868ef9ce5056af580af4, type: 3}
+    debugHiZRT: {fileID: 8400000, guid: fa115cfcc1070b0b88288fe427594b22, type: 2}

@@ -1,0 +1,114 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSThreadTest
+
+#pragma enable_d3d11_debug_symbols
+#pragma enable_vulkan_debug_symbols
+#include <HLSLSupport.cginc>
+
+#define NumThreadsXMax 256
+#define NumThreadsXMaxGroups 32
+
+
+
+RWTexture2D<float4> _CullDebugTexture;
+
+float4 _ScreenParams;
+
+RWTexture2D<float4> Result;
+float _TestTextureSize;
+int _CSThreadTestLength;
+
+[numthreads(16,16,1)]
+void CSThreadTest (uint3 id : SV_DispatchThreadID)
+{
+    // https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/sv-dispatchthreadid
+    // SV_DispatchThreadID = (groupX * numThreadXMax + numThreadX, groupY * numThreadYMax + numThreadY)
+    // SV_GroupThreadID = (numThreadX, numThreadY)
+    // SV_GroupID = (groupX, groupY)
+    // SV_GroupIndex = (numThreadY * numThreadXMax + numThreadX)
+    // ex. list size is 2500. groupXY is (0 - 156). numThreadXY is (0 - 3)
+
+    // Result[id.xy] = _TestTextureSize * id.x + _TestTextureSize * id.y;
+    // Result[id.xy] = float4(id.x * _TestTextureSize, id.y * _TestTextureSize, 0, 1);
+
+    float grayScale = id.x + (id.y / 16) * _CSThreadTestLength;
+    grayScale = grayScale * _TestTextureSize;
+    grayScale = pow(grayScale, 2.0);
+    
+    Result[id.xy] = float4(grayScale, grayScale, grayScale, 1.0);
+    // Result[id.xy] = float4(id.x & id.y, (id.x & 15)/15.0, (id.y & 15)/15.0, 0.0);
+
+    // Old Loop
+    // int xMax = 4;
+    //
+    // float startIndexX = (id.x) * _MeshBufferSize;
+    // float startIndexY = (id.y) * (_MeshBufferSize * xMax);
+    // int i = startIndexX + startIndexY;
+
+    // C#
+    // int testTextureSize = (int)(vertexList.Count * 0.5f);
+    // int groupSize;
+    // {
+    //     computeShader.GetKernelThreadGroupSizes(1, out uint x, out uint y, out uint z);
+    //     groupSize = (int)(x);
+    // }
+    // int groups = testTextureSize / groupSize;
+    // computeShader.SetFloat(testTextureSizeId, 1.0f/(testTextureSize * groups));
+    // computeShader.SetInt(testThreadLengthId, testTextureSize);
+    //         
+    // computeShader.SetTexture(1, renderTextureId, testTexture);
+    // computeShader.Dispatch(1, groups, groups, 1);
+}
+
+
+/*
+// DrawLine2D(bboxWS.MinCorner.xy, bboxWS.MaxCorner.xy, float4(0, 1, 0, 1.0));
+// DrawLine3D(bboxWS.MinCorner, bboxWS.MaxCorner, float3(0, 1, 0), _MatrixVP);
+RWTexture2D<float4> pixels;
+
+bool IsFiniteFloat2(float2 v) {
+    return all(isfinite(v));
+}
+
+bool WritePixel(float x, float y, float4 c) { // todo make x and y uint so on_screen_check is more robust
+    int2 uv = int2(round(x), round(y));
+    if (uv.x < 0 || uv.x >= _ScreenParams.x || uv.y < 0 || uv.y >= _ScreenParams.y) {
+        return false;
+    }
+    _CullDebugTexture[uv] += c;
+    return true;
+}
+
+void DrawLine2D(float2 v1, float2 v2, float4 color) {
+    if (!IsFiniteFloat2(v1) || !IsFiniteFloat2(v2)) {
+        return;
+    }
+    
+    // if the condition is && then one endpoint is allowed to be offscreen
+    // if this point is the same plane as the camera's nearclip then distance (computed below) will be massive and slow things down
+    // so if you want offscreen lines you must have a nonzero nearclip distance
+    if ((v1.x < 0.0 || v1.x >= _ScreenParams.x || v2.x < 0.0 || v2.x >= _ScreenParams.x) ||
+        (v1.y < 0.0 || v1.y >= _ScreenParams.y || v2.y < 0.0 || v2.y >= _ScreenParams.y)) {
+        return;
+        }
+    
+    float dist = distance(v1, v2);
+    for (int i = 0; i < (int)dist; i++) {
+        float t = i / dist;
+        float x = v1.x + (v2.x - v1.x) * t;
+        float y = v1.y + (v2.y - v1.y) * t;
+        WritePixel(x, y, color);
+    }
+}
+
+void DrawLine3D(float3 v1, float3 v2, float3 color, matrix viewProjectionMatrix) {
+    float4 screenPos1 = mul(float4(v1, 1.0), viewProjectionMatrix);
+    float4 screenPos2 = mul(float4(v2, 1.0), viewProjectionMatrix);
+    
+    if (screenPos1.w <= 0.001 || screenPos2.w <= 0.001) {
+        // return;
+    }
+    
+    DrawLine2D(screenPos1.xy, screenPos2.xy, float4(color, 1.0));
+}
+ */
