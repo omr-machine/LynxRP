@@ -99,3 +99,6 @@
 ### Unity Mesh API
 - Read/Write Mesh Data using Jobs https://github.com/Unity-Technologies/MeshApiExamples/blob/master/Assets/CreateMeshFromAllSceneMeshes/CreateMeshFromWholeScene.cs
 
+## Raymarching
+- Bezier Clipping http://nishitalab.org/user/nis/ourworks/BezClip/bezmet.pdf
+- Or even better ray trace against the bounding boxes of your implicit surfaces then ray march the volume inside the bounding box. This should save a load of performance taking unnecessary steps into empty space. 
