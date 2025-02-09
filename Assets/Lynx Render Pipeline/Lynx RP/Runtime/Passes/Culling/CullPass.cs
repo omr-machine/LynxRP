@@ -2,14 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Unity.Collections;
-using Unity.Jobs;
 using Unity.Mathematics;
 using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.RenderGraphModule;
-using Object = UnityEngine.Object;
+
 
 namespace LynxRP
 {
@@ -18,35 +17,35 @@ namespace LynxRP
         static readonly ProfilingSampler samplerCull = new("Cull Pass");
         
         private static readonly int
-	        indexSizeId = Shader.PropertyToID("_IndexSize"),
-	        numGroupsId = Shader.PropertyToID("_NumOfGroups");
+            indexSizeId = Shader.PropertyToID("_IndexSize"),
+            numGroupsId = Shader.PropertyToID("_NumOfGroups");
 
         private static readonly int
-	        indexBufferId = Shader.PropertyToID("_IndexBuffer"),
-	        triangleBufferId = Shader.PropertyToID("_TriangleBuffer"),
-	        bboxBufferId = Shader.PropertyToID("_BBoxBuffer"),
-	        quadBufferId = Shader.PropertyToID("_QuadBuffer");
+            indexBufferId = Shader.PropertyToID("_IndexBuffer"),
+            triangleBufferId = Shader.PropertyToID("_TriangleBuffer"),
+            bboxBufferId = Shader.PropertyToID("_BBoxBuffer"),
+            quadBufferId = Shader.PropertyToID("_QuadBuffer");
 
         private static readonly int
-	        voteBufferId = Shader.PropertyToID("_VoteBuffer"),
-	        scanBufferId = Shader.PropertyToID("_ScanBuffer"),
-	        scanSumBufferId = Shader.PropertyToID("_ScanSumBuffer"),
-	        groupSumBufferId = Shader.PropertyToID("_GroupSumBuffer"),
-	        groupScanBufferId = Shader.PropertyToID("_GroupScanBuffer");
+            voteBufferId = Shader.PropertyToID("_VoteBuffer"),
+            scanBufferId = Shader.PropertyToID("_ScanBuffer"),
+            scanSumBufferId = Shader.PropertyToID("_ScanSumBuffer"),
+            groupSumBufferId = Shader.PropertyToID("_GroupSumBuffer"),
+            groupScanBufferId = Shader.PropertyToID("_GroupScanBuffer");
         
         private static readonly int
-	        argsBufferId = Shader.PropertyToID("_ArgsBuffer"),
-	        argsLineBufferId = Shader.PropertyToID("_ArgsLineBuffer"),
-	        argsQuadBufferId = Shader.PropertyToID("_ArgsQuadBuffer");
+            argsBufferId = Shader.PropertyToID("_ArgsBuffer"),
+            argsLineBufferId = Shader.PropertyToID("_ArgsLineBuffer"),
+            argsQuadBufferId = Shader.PropertyToID("_ArgsQuadBuffer");
 
         private static readonly int
-	        vertexPassBufferId = Shader.PropertyToID("_VertexPassBuffer"),
-	        bboxPassBufferId = Shader.PropertyToID("_BBoxPassBuffer"),
-	        quadPassBufferId = Shader.PropertyToID("_QuadPassBuffer");
+            vertexPassBufferId = Shader.PropertyToID("_VertexPassBuffer"),
+            bboxPassBufferId = Shader.PropertyToID("_BBoxPassBuffer"),
+            quadPassBufferId = Shader.PropertyToID("_QuadPassBuffer");
         
         private static readonly int
-	        hiZBufferId = Shader.PropertyToID("_HiZTexture"),
-	        cullDebugId = Shader.PropertyToID("_CullDebugTexture");
+            hiZBufferId = Shader.PropertyToID("_HiZTexture"),
+            cullDebugId = Shader.PropertyToID("_CullDebugTexture");
 
         public struct Vertex
         {
@@ -58,15 +57,15 @@ namespace LynxRP
         
         struct BBox
         {
-	        public float3 minCorner;
-	        public float3 maxCorner;
-	        public float length;
+            public float3 minCorner;
+            public float3 maxCorner;
+            public float length;
         };
         
         struct Line
         {
-	        public float3 position;
-	        public float3 color;
+            public float3 position;
+            public float3 color;
         };
         
         bool skipPass, cullHiZ;
@@ -88,7 +87,7 @@ namespace LynxRP
         ComputeShader csCullShader, csCompactShader;
         
         BufferHandle 
-	        indexBuffer, vertexPassBuffer, triangleBuffer,
+            indexBuffer, vertexPassBuffer, triangleBuffer,
 			bboxBuffer, bboxPassBuffer,
 			quadBuffer, quadPassBuffer,
 			voteBuffer, scanBuffer, groupSumBuffer, groupScanBuffer, scanSumBuffer,
@@ -124,92 +123,92 @@ namespace LynxRP
         
         void DebugUintBuffer(CommandBuffer commandBuffer, ComputeBuffer computeBuffer)
         {
-	        NativeArray<uint> tempArray = new NativeArray<uint>(indexCount, Allocator.Persistent);
-	        var elements = tempArray;
-	        commandBuffer.RequestAsyncReadbackIntoNativeArray(ref tempArray, computeBuffer, request =>
-	        {
-		        if (request.hasError)
-		        {
-			        Debug.LogError("AsyncGPUReadback request failed.");
-		        }
-		        else
-		        {
-			        Debug.Log(elements.ToSeparatedString(" "));
-		        }
-	        });
+            NativeArray<uint> tempArray = new NativeArray<uint>(indexCount, Allocator.Persistent);
+            var elements = tempArray;
+            commandBuffer.RequestAsyncReadbackIntoNativeArray(ref tempArray, computeBuffer, request =>
+            {
+                if (request.hasError)
+                {
+                    Debug.LogError("AsyncGPUReadback request failed.");
+                }
+                else
+                {
+                    Debug.Log(elements.ToSeparatedString(" "));
+                }
+            });
         }
         
         void DebugLineBuffer(CommandBuffer commandBuffer, ComputeBuffer computeBuffer)
         {
-	        NativeArray<Line> lineArray = new NativeArray<Line>(indexCount, Allocator.Persistent);
-	        var lines = lineArray;
-	        commandBuffer.RequestAsyncReadbackIntoNativeArray(ref lineArray, computeBuffer, request =>
-	        {
-		        if (request.hasError)
-		        {
-			        Debug.LogError("AsyncGPUReadback request failed.");
-		        }
-		        else
-		        {
-			        for (var index = 0; index < lines.Length / 2; index++)
-			        {
-				        var t = lines[index];
-				        var e = lines[index + 1];
-				        Debug.Log(index + ": " + t.position + ", " + e.position);
-			        }
-		        }
-	        });
+            NativeArray<Line> lineArray = new NativeArray<Line>(indexCount, Allocator.Persistent);
+            var lines = lineArray;
+            commandBuffer.RequestAsyncReadbackIntoNativeArray(ref lineArray, computeBuffer, request =>
+            {
+                if (request.hasError)
+                {
+                    Debug.LogError("AsyncGPUReadback request failed.");
+                }
+                else
+                {
+                    for (var index = 0; index < lines.Length / 2; index++)
+                    {
+                        var t = lines[index];
+                        var e = lines[index + 1];
+                        Debug.Log(index + ": " + t.position + ", " + e.position);
+                    }
+                }
+            });
         }
         
         void DebugPointBuffer(CommandBuffer commandBuffer, ComputeBuffer computeBuffer)
         {
-	        NativeArray<Line> pointArray = new NativeArray<Line>(indexCount, Allocator.Persistent);
-	        var point = pointArray;
-	        commandBuffer.RequestAsyncReadbackIntoNativeArray(ref pointArray, computeBuffer, request =>
-	        {
-		        if (request.hasError)
-		        {
-			        Debug.LogError("AsyncGPUReadback request failed.");
-		        }
-		        else
-		        {
-			        for (var index = 0; index < point.Length; index++)
-			        {
-				        var t = point[index];
-				        Debug.Log(index + ": " + t.position + ", " + t.color);
-			        }
-		        }
-	        });
+            NativeArray<Line> pointArray = new NativeArray<Line>(indexCount, Allocator.Persistent);
+            var point = pointArray;
+            commandBuffer.RequestAsyncReadbackIntoNativeArray(ref pointArray, computeBuffer, request =>
+            {
+                if (request.hasError)
+                {
+                    Debug.LogError("AsyncGPUReadback request failed.");
+                }
+                else
+                {
+                    for (var index = 0; index < point.Length; index++)
+                    {
+                        var t = point[index];
+                        Debug.Log(index + ": " + t.position + ", " + t.color);
+                    }
+                }
+            });
         }
         
         void SetGroups(uint triBufferCount)
         {
-	        voteGroups = Mathf.CeilToInt(triBufferCount / (float)numThreadsXMax);
-	        scanGroups = Mathf.CeilToInt(triBufferCount/2f / numThreadsXMax/2f);
-	        sumGroups = Mathf.CeilToInt(scanGroups/2f / numThreadsXMaxGroups/2f);
-	        compactGroups = voteGroups;
-	        
+            voteGroups = Mathf.CeilToInt(triBufferCount / (float)numThreadsXMax);
+            scanGroups = Mathf.CeilToInt(triBufferCount/2f / numThreadsXMax/2f);
+            sumGroups = Mathf.CeilToInt(scanGroups/2f / numThreadsXMaxGroups/2f);
+            compactGroups = voteGroups;
+
 	        // Debug.Log(voteGroups + " " + scanGroups + " " + sumGroups);
         }
         
         uint NextPowerOfTwo(uint n)
         {
-	        if (n == 0)
-		        return 1;
+            if (n == 0)
+                return 1;
             
-	        if ((n & (n - 1)) == 0)
-		        return n;
+            if ((n & (n - 1)) == 0)
+                return n;
             
 	        if (n > 0x80000000)  // 0x80000000 is 2^31
-		        throw new OverflowException("Next power of 2 would exceed uint.MaxValue");
+                throw new OverflowException("Next power of 2 would exceed uint.MaxValue");
             
-	        n |= n >> 1;
-	        n |= n >> 2;
-	        n |= n >> 4;
-	        n |= n >> 8;
-	        n |= n >> 16;
-               
-	        return n + 1;
+            n |= n >> 1;
+            n |= n >> 2;
+            n |= n >> 4;
+            n |= n >> 8;
+            n |= n >> 16;
+
+            return n + 1;
         }
 
         void Render(RenderGraphContext context)
@@ -217,8 +216,8 @@ namespace LynxRP
             CommandBuffer buffer = context.cmd;
 
             if (skipPass)
-	            return;
-	        
+                return;
+            
             buffer.SetBufferData(
                 indexBuffer, jobs.outputArray, 0, 0, indexCount
             );
@@ -234,7 +233,7 @@ namespace LynxRP
             uint clearGroupX = (uint)Mathf.CeilToInt(resolution.x / 16f);
             uint clearGroupY = (uint)Mathf.CeilToInt(resolution.y / 16f);
             int clearGroupMax = (int)Mathf.Max(clearGroupX, clearGroupY);
-	        
+
             buffer.SetComputeTextureParam(csCullShader, 4, cullDebugId, cullDebug);
             buffer.DispatchCompute(csCullShader, 4, clearGroupMax, clearGroupMax, 1);
             
@@ -282,7 +281,7 @@ namespace LynxRP
             // buffer.SetComputeBufferParam(csCompactShader, 2, vertexPassBufferId, vertexPassBuffer);
             // buffer.DispatchCompute(csCompactShader, 2, compactGroups, 1, 1);
 
-	        buffer.SetComputeBufferParam(csCullShader, 2, triangleBufferId, triangleBuffer);
+            buffer.SetComputeBufferParam(csCullShader, 2, triangleBufferId, triangleBuffer);
 			buffer.SetComputeBufferParam(csCullShader, 2, vertexPassBufferId, vertexPassBuffer);
 			buffer.SetComputeBufferParam(csCullShader, 2, argsBufferId, argsBuffer);
 			buffer.SetComputeBufferParam(csCullShader, 2, voteBufferId, voteBuffer);
@@ -315,9 +314,9 @@ namespace LynxRP
             // DebugPointBuffer(buffer, quadPassBuffer);
             
             buffer.DrawProceduralIndirect(
-	            Matrix4x4.identity,
-	            cullMaterial, 0,
-	            MeshTopology.Triangles, argsBuffer);
+                Matrix4x4.identity,
+                cullMaterial, 0,
+                MeshTopology.Triangles, argsBuffer);
             
             // buffer.DrawProceduralIndirect(
 	           //  Matrix4x4.identity,
@@ -325,9 +324,9 @@ namespace LynxRP
 	           //  MeshTopology.Lines, argsLineBuffer);
             
             buffer.DrawProceduralIndirect(
-	            Matrix4x4.identity,
-	            cullMaterial, 2,
-	            MeshTopology.Points, argsQuadBuffer);
+                Matrix4x4.identity,
+                cullMaterial, 2,
+                MeshTopology.Points, argsQuadBuffer);
 
             if (cullHiZ)
             {
@@ -366,8 +365,8 @@ namespace LynxRP
 
             if (cullShader != null)
             {
-	            pass.cullMaterial = new Material(cullShader);
-	            pass.cullMaterial.hideFlags = HideFlags.HideAndDontSave;
+                pass.cullMaterial = new Material(cullShader);
+                pass.cullMaterial.hideFlags = HideFlags.HideAndDontSave;
             }
             
             pass.skipPass = false;
@@ -376,9 +375,9 @@ namespace LynxRP
             pass.triCount = meshData.triCount;
             if (pass.indexCount == 0 || pass.triCount == 0)
             {
-	            pass.indexCount = 3;
-	            pass.triCount = 1;
-	            pass.skipPass = true;
+                pass.indexCount = 3;
+                pass.triCount = 1;
+                pass.skipPass = true;
             }
             pass.jobs = meshData.jobs;
 
@@ -396,6 +395,7 @@ namespace LynxRP
                 target = GraphicsBuffer.Target.Structured
             };
             pass.indexBuffer = builder.WriteBuffer(renderGraph.CreateBuffer(descT));
+            
             descT.name = "Vertex Pass Buffer";
             pass.vertexPassBuffer = builder.WriteBuffer(renderGraph.CreateBuffer(descT));
             
@@ -445,11 +445,9 @@ namespace LynxRP
             
             var desc = new TextureDesc(attachmentSize.x, attachmentSize.y)
             {
-	            colorFormat = SystemInfo.GetGraphicsFormat(
-		            DefaultFormat.HDR
-	            ),
-	            name = "Cull Debug Texture",
-	            enableRandomWrite = true
+                colorFormat = SystemInfo.GetGraphicsFormat(DefaultFormat.HDR),
+                name = "Cull Debug Texture",
+                enableRandomWrite = true
             };
             desc.clearColor = Color.black;
             pass.cullDebug = builder.WriteTexture(renderGraph.CreateTexture(desc));

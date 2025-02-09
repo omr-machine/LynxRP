@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Jobs;
 using UnityEngine;
+using Object = UnityEngine.Object;
 
 namespace LynxRP
 {
