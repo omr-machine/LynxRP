@@ -11,6 +11,8 @@ namespace LynxRP
 
         readonly LynxRenderPipelineSettings settings;
 
+        InterFrameData interFrameData;
+
         readonly RenderGraph renderGraph = new("Custom SRP Render Graph");
 
         public LynxRenderPipeline(LynxRenderPipelineSettings settings)
@@ -21,17 +23,24 @@ namespace LynxRP
 
             InitializeForEditor();
             renderer = new CameraRenderer(settings.cameraRendererShader, settings.cameraDebuggerShader);
+
+            interFrameData = new InterFrameData();
         }
 
         protected override void Render(ScriptableRenderContext context, Camera[] cameras) { }
 
         protected override void Render(ScriptableRenderContext context, List<Camera> cameras)
         {
+            interFrameData.JobsMeshes();
+            interFrameData.meshData.handle.Complete();
+
             for (int i = 0; i < cameras.Count; i++)
             {
-                renderer.Render(renderGraph, context, cameras[i], settings);
+                renderer.Render(renderGraph, context, cameras[i], settings, ref interFrameData.meshData);
             }
             renderGraph.EndFrame();
+
+            interFrameData.JobsMeshesDispose();
         }
 
         protected override void Dispose (bool disposing)

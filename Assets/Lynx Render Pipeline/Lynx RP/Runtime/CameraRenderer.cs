@@ -31,7 +31,8 @@ namespace LynxRP
             RenderGraph renderGraph,
             ScriptableRenderContext context, 
             Camera camera, 
-            LynxRenderPipelineSettings settings
+            LynxRenderPipelineSettings settings,
+            ref InterFrameData.MeshJobsData meshData
         )
         {
             CameraBufferSettings bufferSettings = settings.cameraBuffer;
@@ -172,7 +173,8 @@ namespace LynxRP
                         ref context, ref renderGraph, debugCulling,
                         camera, cullingResults, bufferSize, settings, bufferSettings,
                         postFXSettings, shadowSettings, cameraSettings, hasActivePostFX,
-                        useColorTexture, useDepthTexture
+                        useColorTexture, useDepthTexture,
+                        ref meshData
                     );
                 }
             }
@@ -362,7 +364,8 @@ namespace LynxRP
             Camera camera, CullingResults cullingResults, Vector2Int bufferSize,
             LynxRenderPipelineSettings settings, CameraBufferSettings bufferSettings,
             PostFXSettings postFXSettings, ShadowSettings shadowSettings, CameraSettings cameraSettings,
-            bool hasActivePostFX, bool useColorTexture, bool useDepthTexture
+            bool hasActivePostFX, bool useColorTexture, bool useDepthTexture,
+            ref InterFrameData.MeshJobsData meshData
         )
         {
 
@@ -392,7 +395,8 @@ namespace LynxRP
                 renderGraph, bufferSize, camera,
                 cameraSettings, hiZData, textures,
                 settings.csCullShader, settings.csCompactShader,
-                settings.cullShader
+                settings.cullShader,
+                ref meshData
             );
 
             // GeometryPass.Record(

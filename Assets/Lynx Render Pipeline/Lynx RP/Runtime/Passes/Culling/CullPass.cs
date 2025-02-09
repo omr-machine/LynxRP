@@ -84,7 +84,6 @@ namespace LynxRP
         Material cullMaterial;
         
         ProcessMeshDataJob jobs;
-        JobHandle handle;
         
         ComputeShader csCullShader, csCompactShader;
         
@@ -212,42 +211,9 @@ namespace LynxRP
                
 	        return n + 1;
         }
-        
-        void JobsMeshes()
-        {
-	        var meshFilters = Object.FindObjectsByType<MeshFilter>(FindObjectsSortMode.None);
-        
-	        jobs = new ProcessMeshDataJob();
-	        jobs.CreateInputArrays(meshFilters.Length);
-	        var inputMeshes = new List<Mesh>(meshFilters.Length);
-            
-	        var indexStart = 0;
-	        var meshCount = 0;
-	        for (var i = 0; i < meshFilters.Length; ++i)
-	        {
-		        var mf = meshFilters[i];
-		        var go = mf.gameObject;
-                
-		        var mesh = mf.sharedMesh;
-		        inputMeshes.Add(mesh);
-		        jobs.indexStart[meshCount] = indexStart;
-		        jobs.xform[meshCount] = go.transform.localToWorldMatrix;
-		        indexStart += (int)mesh.GetIndexCount(0);
-		        ++meshCount;
-	        }
-
-	        indexCount = indexStart;
-	        triCount = indexCount / 3;
-            
-	        jobs.outputArray = new NativeArray<Vertex>(indexCount, Allocator.TempJob);
-	        jobs.meshData = Mesh.AcquireReadOnlyMeshData(inputMeshes);
-            
-	        handle = jobs.Schedule(meshCount, 4);
-        }
 
         void Render(RenderGraphContext context)
         {
-            handle.Complete();
             CommandBuffer buffer = context.cmd;
 
             if (skipPass)
@@ -375,9 +341,6 @@ namespace LynxRP
             context.renderContext.ExecuteCommandBuffer(buffer);
             buffer.Clear();
             
-            jobs.meshData.Dispose();
-            jobs.outputArray.Dispose();
-            
             context.renderContext.ExecuteCommandBuffer(buffer);
             buffer.Clear();
         }
@@ -391,7 +354,8 @@ namespace LynxRP
             in CameraRendererTextures textures,
             ComputeShader csCullShader,
             ComputeShader csCompactShader,
-            Shader cullShader
+            Shader cullShader,
+            ref InterFrameData.MeshJobsData meshData
         )
         {
             ProfilingSampler sampler = samplerCull;
@@ -407,13 +371,16 @@ namespace LynxRP
             }
             
             pass.skipPass = false;
-            pass.JobsMeshes();
+
+            pass.indexCount = meshData.indexCount;
+            pass.triCount = meshData.triCount;
             if (pass.indexCount == 0 || pass.triCount == 0)
             {
 	            pass.indexCount = 3;
 	            pass.triCount = 1;
 	            pass.skipPass = true;
             }
+            pass.jobs = meshData.jobs;
 
             pass.triCountPadded = (int)pass.NextPowerOfTwo((uint)pass.triCount);
             pass.SetGroups((uint)pass.triCountPadded);
