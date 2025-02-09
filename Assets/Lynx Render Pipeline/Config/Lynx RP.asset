@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Lynx RP
   m_EditorClassIdentifier: 
   settings:
-    pipelineType: 0
+    pipelineType: 2
     cameraBuffer:
       allowHDR: 1
       copyColor: 1
