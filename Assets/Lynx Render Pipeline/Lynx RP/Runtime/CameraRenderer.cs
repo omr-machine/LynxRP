@@ -394,7 +394,7 @@ namespace LynxRP
             CullPass.Record(
                 renderGraph, bufferSize, camera,
                 cameraSettings, hiZData, textures,
-                settings.csCullShader, settings.csCompactShader,
+                settings.csCullShader, settings.csCompactShader, settings.csTransformPositionShader,
                 settings.cullShader,
                 ref meshData
             );

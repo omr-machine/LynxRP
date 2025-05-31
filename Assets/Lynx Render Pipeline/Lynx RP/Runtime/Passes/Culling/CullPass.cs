@@ -1,8 +1,6 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using Unity.Collections;
-using Unity.Mathematics;
 using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering;
@@ -12,6 +10,7 @@ using UnityEngine.Rendering.RenderGraphModule;
 
 namespace LynxRP
 {
+    using static MeshDefinitions;
     public class CullPass
     {
         static readonly ProfilingSampler samplerCull = new("Cull Pass");
@@ -19,6 +18,10 @@ namespace LynxRP
         private static readonly int
             indexSizeId = Shader.PropertyToID("_IndexSize"),
             numGroupsId = Shader.PropertyToID("_NumOfGroups");
+        
+        private static readonly int 
+            offsetSizesBufferId = Shader.PropertyToID("_OffsetSizesBuffer"),
+            matricesBufferId = Shader.PropertyToID("_MatricesBuffer"); 
 
         private static readonly int
             indexBufferId = Shader.PropertyToID("_IndexBuffer"),
@@ -46,27 +49,6 @@ namespace LynxRP
         private static readonly int
             hiZBufferId = Shader.PropertyToID("_HiZTexture"),
             cullDebugId = Shader.PropertyToID("_CullDebugTexture");
-
-        public struct Vertex
-        {
-            public float3 position;
-            public float3 normal;
-            public float4 color;
-            public float2 uv;
-        }
-        
-        struct BBox
-        {
-            public float3 minCorner;
-            public float3 maxCorner;
-            public float length;
-        };
-        
-        struct Line
-        {
-            public float3 position;
-            public float3 color;
-        };
         
         bool skipPass, cullHiZ;
         
@@ -83,8 +65,11 @@ namespace LynxRP
         Material cullMaterial;
         
         ProcessMeshDataJob jobs;
+        InterFrameData.MeshJobsData meshData;
         
-        ComputeShader csCullShader, csCompactShader;
+        ComputeShader csCullShader, csCompactShader, csTransformPositionShader;
+
+        BufferHandle offsetSizesBuffer, matricesBuffer;
         
         BufferHandle 
             indexBuffer, vertexPassBuffer, triangleBuffer,
@@ -191,26 +176,6 @@ namespace LynxRP
 	        // Debug.Log(voteGroups + " " + scanGroups + " " + sumGroups);
         }
         
-        uint NextPowerOfTwo(uint n)
-        {
-            if (n == 0)
-                return 1;
-            
-            if ((n & (n - 1)) == 0)
-                return n;
-            
-	        if (n > 0x80000000)  // 0x80000000 is 2^31
-                throw new OverflowException("Next power of 2 would exceed uint.MaxValue");
-            
-            n |= n >> 1;
-            n |= n >> 2;
-            n |= n >> 4;
-            n |= n >> 8;
-            n |= n >> 16;
-
-            return n + 1;
-        }
-
         void Render(RenderGraphContext context)
         {
             CommandBuffer buffer = context.cmd;
@@ -218,16 +183,37 @@ namespace LynxRP
             if (skipPass)
                 return;
             
+            // buffer.SetBufferData(
+            //     indexBuffer, jobs.outputArray, 0, 0, indexCount
+            // );
             buffer.SetBufferData(
-                indexBuffer, jobs.outputArray, 0, 0, indexCount
+                indexBuffer, meshData.finalList, 0, 0, indexCount
+            );
+
+            int matricesCount = meshData.objCount;
+            buffer.SetBufferData(
+                offsetSizesBuffer, meshData.finalOffsetSizes, 0, 0, matricesCount * 2
+            );
+            buffer.SetBufferData(
+                matricesBuffer, meshData.finalMatrices, 0, 0, matricesCount
             );
             
+            int indexCount2 = Mathf.CeilToInt(matricesCount / (float)numThreadsXMax);
+            buffer.SetComputeBufferParam(csTransformPositionShader, 0, indexBufferId, indexBuffer);
+            buffer.SetComputeBufferParam(csTransformPositionShader, 0, offsetSizesBufferId, offsetSizesBuffer);
+            buffer.SetComputeBufferParam(csTransformPositionShader, 0, matricesBufferId, matricesBuffer);
+            buffer.SetComputeIntParam(csTransformPositionShader, indexSizeId, matricesCount);
+            buffer.DispatchCompute(csTransformPositionShader, 0, indexCount2, 1, 1);
+
             uint[] args = {0, 1, 0, 0};
             buffer.SetBufferData(argsBuffer, args, 0, 0, 4);
             buffer.SetBufferData(argsLineBuffer, args, 0, 0, 4);
             buffer.SetBufferData(argsQuadBuffer, args, 0, 0, 4);
             
             buffer.SetComputeIntParam(csCullShader, indexSizeId, triCount);
+            
+            buffer.SetComputeBufferParam(csCullShader, 0, indexBufferId, indexBuffer);
+            buffer.SetComputeBufferParam(csCullShader, 0, triangleBufferId, triangleBuffer);
             buffer.SetComputeIntParam(csCompactShader, indexSizeId, triCount);
 
             uint clearGroupX = (uint)Mathf.CeilToInt(resolution.x / 16f);
@@ -353,6 +339,7 @@ namespace LynxRP
             in CameraRendererTextures textures,
             ComputeShader csCullShader,
             ComputeShader csCompactShader,
+            ComputeShader csTransformPositionShader,
             Shader cullShader,
             ref InterFrameData.MeshJobsData meshData
         )
@@ -379,13 +366,29 @@ namespace LynxRP
                 pass.triCount = 1;
                 pass.skipPass = true;
             }
+            pass.meshData = meshData;
             pass.jobs = meshData.jobs;
 
-            pass.triCountPadded = (int)pass.NextPowerOfTwo((uint)pass.triCount);
+            pass.triCountPadded = (int)NextPowerOfTwo((uint)pass.triCount);
             pass.SetGroups((uint)pass.triCountPadded);
             
             pass.csCullShader = csCullShader;
             pass.csCompactShader = csCompactShader;
+            pass.csTransformPositionShader = csTransformPositionShader;
+
+            var descN = new BufferDesc
+            {
+                name = "Offset And Sizes Buffer",
+                count = meshData.objCount * 2,
+                stride = 4,
+                target = GraphicsBuffer.Target.Structured
+            };
+            pass.offsetSizesBuffer = builder.WriteBuffer(renderGraph.CreateBuffer(descN));
+            
+            descN.name = "Matrices Buffer";
+            descN.count = meshData.objCount;
+            descN.stride = (4 * 4) * 4;
+            pass.matricesBuffer = builder.WriteBuffer(renderGraph.CreateBuffer(descN));
             
             var descT = new BufferDesc
             {

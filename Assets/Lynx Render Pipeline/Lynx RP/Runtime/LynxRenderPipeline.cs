@@ -31,8 +31,17 @@ namespace LynxRP
 
         protected override void Render(ScriptableRenderContext context, List<Camera> cameras)
         {
-            interFrameData.JobsMeshes();
-            interFrameData.meshData.handle.Complete();
+            if (settings.pipelineType == LynxRenderPipelineSettings.PipelineType.GPUDriven)
+            {
+                interFrameData.UpdateVertexBuffer();
+                interFrameData.DebugInstanceIDs();
+                // interFrameData.DebugInstanceMatrices();
+                interFrameData.DebugFinalList();
+                interFrameData.DebugFinalMatrices();
+
+                // interFrameData.JobsMeshes();
+                // interFrameData.meshData.handle.Complete();
+            }
 
             for (int i = 0; i < cameras.Count; i++)
             {
@@ -40,7 +49,7 @@ namespace LynxRP
             }
             renderGraph.EndFrame();
 
-            interFrameData.JobsMeshesDispose();
+            // interFrameData.JobsMeshesDispose();
         }
 
         protected override void Dispose (bool disposing)
@@ -48,6 +57,11 @@ namespace LynxRP
             base.Dispose(disposing);
             DisposeForEditor();
             renderer.Dispose();
+
+            if (settings.pipelineType == LynxRenderPipelineSettings.PipelineType.GPUDriven)
+            {
+                interFrameData.Dispose(); 
+            }
         }
     }
 }
