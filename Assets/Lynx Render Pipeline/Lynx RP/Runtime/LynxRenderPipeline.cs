@@ -38,9 +38,6 @@ namespace LynxRP
                 // interFrameData.DebugInstanceMatrices();
                 interFrameData.DebugFinalList();
                 interFrameData.DebugFinalMatrices();
-
-                // interFrameData.JobsMeshes();
-                // interFrameData.meshData.handle.Complete();
             }
 
             for (int i = 0; i < cameras.Count; i++)
@@ -48,8 +45,6 @@ namespace LynxRP
                 renderer.Render(renderGraph, context, cameras[i], settings, ref interFrameData.meshData);
             }
             renderGraph.EndFrame();
-
-            // interFrameData.JobsMeshesDispose();
         }
 
         protected override void Dispose (bool disposing)

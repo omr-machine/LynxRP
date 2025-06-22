@@ -64,7 +64,6 @@ namespace LynxRP
         
         Material cullMaterial;
         
-        ProcessMeshDataJob jobs;
         InterFrameData.MeshJobsData meshData;
         
         ComputeShader csCullShader, csCompactShader, csTransformPositionShader;
@@ -367,7 +366,6 @@ namespace LynxRP
                 pass.skipPass = true;
             }
             pass.meshData = meshData;
-            pass.jobs = meshData.jobs;
 
             pass.triCountPadded = (int)NextPowerOfTwo((uint)pass.triCount);
             pass.SetGroups((uint)pass.triCountPadded);

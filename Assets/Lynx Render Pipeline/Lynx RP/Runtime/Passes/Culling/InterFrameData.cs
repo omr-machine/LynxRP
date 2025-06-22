@@ -13,7 +13,6 @@ namespace LynxRP
     {
         public struct MeshJobsData
         {
-            public ProcessMeshDataJob jobs;
             public JobHandle handle;
             public int indexCount;
             public int triCount;
@@ -39,7 +38,6 @@ namespace LynxRP
 
         Bounds[] BBVerts = new Bounds[512];
 
-
         public void UpdateVertexBuffer()
         {
             var meshFilters = Object.FindObjectsByType<MeshFilter>(FindObjectsSortMode.None);
@@ -60,7 +58,6 @@ namespace LynxRP
             
             meshData.objCount = instanceIDs.Count;
             UpdateMeshMatrices();
-            // UpdateVertexBufferPositions();
         }
 
         private void RemoveInstanceIDs(ref SortedSet<int> visibleObjectIDs)
@@ -152,30 +149,6 @@ namespace LynxRP
                 GameObject go = kvp.Value;
                 meshData.meshMatrices[instanceID] = go.transform.localToWorldMatrix;
             }
-        }
-
-        void UpdateVertexBufferPositions()
-        {
-            for (int i = 0; i < meshBufferOffsets.Count; i++)
-            {
-                int instanceID = meshBufferOffsets.Keys.ElementAt(i);
-                Matrix4x4 localToWorldMatrix = meshData.meshMatrices[instanceID];
-                // Debug.Log(localToWorldMatrix);
-
-                (int, int) OffsetNSize = meshBufferOffsets[instanceID];
-                int offset = OffsetNSize.Item1;
-                int size = OffsetNSize.Item2;
-                int offsetEnd = offset + OffsetNSize.Item2 - 1;
-
-                // Debug.Log("___ " + offset + " - " + offsetEnd); 
-                for (int k = offset; k <= offsetEnd; k++)
-                {
-                    var vertex = meshBufferDefault[k];
-                    var localPosition = new float4(vertex.position, 1.0f);
-                    vertex.position = math.mul(localToWorldMatrix, localPosition).xyz;
-                    meshData.finalList[k] = vertex;
-                }
-            } 
         }
 
         public void FillBBArray()
@@ -323,8 +296,6 @@ namespace LynxRP
 
         internal void Dispose()
         {
-            meshData.jobs.meshData.Dispose();
-            meshData.jobs.outputArray.Dispose();
             meshBufferDefault.Clear();
             meshData.finalList.Clear();
             instanceIDs.Clear();
