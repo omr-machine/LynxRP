@@ -13,7 +13,6 @@ namespace LynxRP
     {
         public struct MeshJobsData
         {
-            public JobHandle handle;
             public int indexCount;
             public int triCount;
             public int objCount;
@@ -31,10 +30,10 @@ namespace LynxRP
             finalMatrices = new()
         };
 
-        SortedDictionary<int, GameObject> instanceIDs = new();
-        SortedDictionary<int, (int, int)> meshBufferOffsets = new();
+        readonly SortedDictionary<int, GameObject> instanceIDs = new();
+        readonly SortedDictionary<int, (int, int)> meshBufferOffsets = new();
 
-        List<MeshDefinitions.Vertex> meshBufferDefault = new();
+        readonly List<MeshDefinitions.Vertex> meshBufferDefault = new();
 
         Bounds[] BBVerts = new Bounds[512];
 
@@ -130,11 +129,13 @@ namespace LynxRP
 
                 foreach (int index in mesh.GetIndices(0))
                 {
-                    MeshDefinitions.Vertex vertex = new MeshDefinitions.Vertex();
-                    vertex.position = mesh.vertices[index];
-                    vertex.normal = mesh.normals[index];
-                    vertex.color = (Vector4)Color.white;
-                    vertex.uv = mesh.uv[index];
+                    MeshDefinitions.Vertex vertex = new()
+                    {
+                        position = mesh.vertices[index],
+                        normal = mesh.normals[index],
+                        color = (Vector4)Color.white,
+                        uv = mesh.uv[index]
+                    };
                     meshBufferDefault.Add(vertex);
                     meshData.finalList.Add(vertex);
                 }
@@ -175,52 +176,9 @@ namespace LynxRP
             }
         }
 
-        public void JobsMeshes()
-        {
-            var meshFilters = Object.FindObjectsByType<MeshFilter>(FindObjectsSortMode.None);
-
-            meshData.jobs = new ProcessMeshDataJob();
-            meshData.jobs.CreateInputArrays(meshFilters.Length);
-            var inputMeshes = new List<Mesh>(meshFilters.Length);
-
-            if (BBVerts.Length < meshFilters.Length)
-            {
-                BBVerts = new Bounds[meshFilters.Length];
-            }
-
-            var indexStart = 0;
-            var meshCount = 0;
-            for (var i = 0; i < meshFilters.Length; ++i)
-            {
-                var mf = meshFilters[i];
-                var go = mf.gameObject;
-                int instanceID = go.GetInstanceID();
-
-                var mesh = mf.sharedMesh;
-                inputMeshes.Add(mesh);
-                meshData.jobs.indexStart[meshCount] = indexStart;
-                meshData.jobs.xform[meshCount] = go.transform.localToWorldMatrix;
-                indexStart += (int)mesh.GetIndexCount(0);
-                ++meshCount;
-
-                AddInstanceID(ref instanceID, ref go, ref mesh);
-                BBVerts[i] = go.GetComponent<Renderer>().bounds;
-            }
-
-            meshData.indexCount = indexStart;
-            meshData.triCount = meshData.indexCount / 3;
-
-            meshData.jobs.outputArray = new NativeArray<MeshDefinitions.Vertex>(meshData.indexCount, Allocator.TempJob);
-            meshData.jobs.meshData = Mesh.AcquireReadOnlyMeshData(inputMeshes);
-
-            meshData.handle = meshData.jobs.Schedule(meshCount, 4);
-            
-        }
-
         public void JobsMeshesDispose()
         {
-            meshData.jobs.meshData.Dispose();
-            meshData.jobs.outputArray.Dispose();
+
         }
 
         public void DebugPrintBounds()
@@ -257,7 +215,6 @@ namespace LynxRP
             meshData.finalOffsetSizes.Clear();
             meshData.finalMatrices.Clear();
 
-            List<int> ids = new List<int>(meshBufferOffsets.Keys);
             foreach(var id in instanceIDs)
             {
                 meshData.finalOffsetSizes.Add(meshBufferOffsets[id.Key].Item1);
@@ -268,8 +225,10 @@ namespace LynxRP
 
         public void DebugFinalMatrices()
         {
+            List<int> ids = new(meshBufferOffsets.Keys);
+            
             PopulateDataForBuffer();
-            List<int> ids = new List<int>(meshBufferOffsets.Keys);
+            
             int k = 0;
             for (int i = 0; i < meshData.finalMatrices.Count; i++)
             {

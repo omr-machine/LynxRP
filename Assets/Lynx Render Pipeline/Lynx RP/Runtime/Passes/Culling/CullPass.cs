@@ -86,7 +86,6 @@ namespace LynxRP
         {
             NativeArray<Vertex> tempVertices = new NativeArray<Vertex>(indexCount, Allocator.Persistent);
             var vertices = tempVertices;
-            List<Vertex> tempList = jobs.outputArray.ToArray().ToList();
             commandBuffer.RequestAsyncReadbackIntoNativeArray(ref tempVertices, computeBuffer, request =>
             {
                 if (request.hasError)
@@ -98,7 +97,7 @@ namespace LynxRP
                     for (var index = 0; index < vertices.Length; index++)
                     {
                         var t = vertices[index];
-                        Debug.Log(index + ": " + t.uv + ", " + tempList[index].uv);
+                        Debug.Log(index + ": " + t.uv + ", " + vertices[index].uv);
                     }
                 }
             });
