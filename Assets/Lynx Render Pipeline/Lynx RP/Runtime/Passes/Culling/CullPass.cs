@@ -185,7 +185,7 @@ namespace LynxRP
             //     indexBuffer, jobs.outputArray, 0, 0, indexCount
             // );
             buffer.SetBufferData(
-                indexBuffer, meshData.finalList, 0, 0, indexCount
+                indexBuffer, meshData.meshBufferDefault, 0, 0, indexCount
             );
 
             int matricesCount = meshData.objCount;

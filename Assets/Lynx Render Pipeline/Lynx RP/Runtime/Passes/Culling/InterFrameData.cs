@@ -17,7 +17,7 @@ namespace LynxRP
             public int triCount;
             public int objCount;
             public SortedDictionary<int, Matrix4x4> meshMatrices;
-            public List<MeshDefinitions.Vertex> finalList;
+            public List<MeshDefinitions.Vertex> meshBufferDefault;
             public List<int> finalOffsetSizes;
             public List<Matrix4x4> finalMatrices;
         }
@@ -25,15 +25,13 @@ namespace LynxRP
         public MeshJobsData meshData = new() { 
             indexCount = 0, triCount = 0,
             meshMatrices = new(),
-            finalList = new(),
+            meshBufferDefault = new(),
             finalOffsetSizes = new(),
             finalMatrices = new()
         };
 
         readonly SortedDictionary<int, GameObject> instanceIDs = new();
         readonly SortedDictionary<int, (int, int)> meshBufferOffsets = new();
-
-        readonly List<MeshDefinitions.Vertex> meshBufferDefault = new();
 
         Bounds[] BBVerts = new Bounds[512];
 
@@ -89,12 +87,10 @@ namespace LynxRP
                     int sizeToTrim   = meshesToRemove.Values.ElementAt(i);
                     int index = offsetToTrim + sizeToTrim;
 
-                    // meshBufferDefault.RemoveRange(offsetToTrim, sizeToTrim);
-                    // meshData.finalList.RemoveRange(offsetToTrim, sizeToTrim);
+                    // meshData.meshBufferDefault.RemoveRange(offsetToTrim, sizeToTrim);
                     for (int k = index - 1; k >= offsetToTrim; k--)
                     {
-                        meshBufferDefault.RemoveAt(k);
-                        meshData.finalList.RemoveAt(k);   
+                        meshData.meshBufferDefault.RemoveAt(k);   
                     }
 
                     for (int m = i; m < meshBufferOffsets.Count; m++)
@@ -121,7 +117,7 @@ namespace LynxRP
                 instanceIDs.Add(instanceID, go);
 
                 int indexCount = (int)mesh.GetIndexCount(0);
-                (int, int) OffsetNSize = (meshBufferDefault.Count, indexCount);
+                (int, int) OffsetNSize = (meshData.meshBufferDefault.Count, indexCount);
                 meshBufferOffsets.Add(instanceID, OffsetNSize);
 
                 meshData.indexCount += indexCount;
@@ -136,8 +132,7 @@ namespace LynxRP
                         color = (Vector4)Color.white,
                         uv = mesh.uv[index]
                     };
-                    meshBufferDefault.Add(vertex);
-                    meshData.finalList.Add(vertex);
+                    meshData.meshBufferDefault.Add(vertex);
                 }
             }
         }
@@ -200,13 +195,11 @@ namespace LynxRP
         public void DebugFinalList()
         { 
             Debug.Log("#####");
-            Debug.Log(meshData.finalList.Count);
+            Debug.Log(meshData.meshBufferDefault.Count);
             Debug.Log("%%%%%");
-            Debug.Log(meshBufferDefault.Count);
-            // for (int i = 0; i < meshData.finalList.Count; i++)
+            // for (int i = 0; i < meshData.meshBufferDefault.Count; i++)
             // {
-            //     Debug.Log(meshData.finalList[i].position);
-            //     // Debug.Log(meshBufferDefault[i].position);
+            //     Debug.Log(meshData.meshBufferDefault[i].position);
             // }
         }
 
@@ -255,8 +248,7 @@ namespace LynxRP
 
         internal void Dispose()
         {
-            meshBufferDefault.Clear();
-            meshData.finalList.Clear();
+            meshData.meshBufferDefault.Clear();
             instanceIDs.Clear();
             meshBufferOffsets.Clear(); 
             meshData.meshMatrices.Clear();
