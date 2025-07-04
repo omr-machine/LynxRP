@@ -7,7 +7,6 @@ using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.RenderGraphModule;
 
-
 namespace LynxRP
 {
     using static MeshDefinitions;
@@ -21,7 +20,8 @@ namespace LynxRP
         
         private static readonly int 
             offsetSizesBufferId = Shader.PropertyToID("_OffsetSizesBuffer"),
-            matricesBufferId = Shader.PropertyToID("_MatricesBuffer"); 
+            matricesBufferId = Shader.PropertyToID("_MatricesBuffer"),
+            aabbBufferId = Shader.PropertyToID("_AABBBuffer"); 
 
         private static readonly int
             indexBufferId = Shader.PropertyToID("_IndexBuffer"),
@@ -68,7 +68,7 @@ namespace LynxRP
         
         ComputeShader csCullShader, csCompactShader, csTransformPositionShader;
 
-        BufferHandle offsetSizesBuffer, matricesBuffer;
+        BufferHandle offsetSizesBuffer, matricesBuffer, aabbBuffer;
         
         BufferHandle 
             indexBuffer, vertexPassBuffer, triangleBuffer,
@@ -195,6 +195,9 @@ namespace LynxRP
             buffer.SetBufferData(
                 matricesBuffer, meshData.finalMatrices, 0, 0, matricesCount
             );
+            buffer.SetBufferData(
+                aabbBuffer, meshData.BBs, 0, 0, matricesCount
+            );
             
             int indexCount2 = Mathf.CeilToInt(matricesCount / (float)numThreadsXMax);
             buffer.SetComputeBufferParam(csTransformPositionShader, 0, indexBufferId, indexBuffer);
@@ -203,6 +206,15 @@ namespace LynxRP
             buffer.SetComputeIntParam(csTransformPositionShader, indexSizeId, matricesCount);
             buffer.DispatchCompute(csTransformPositionShader, 0, indexCount2, 1, 1);
 
+            buffer.SetComputeBufferParam(csTransformPositionShader, 1, voteBufferId, voteBuffer);
+            buffer.SetComputeBufferParam(csTransformPositionShader, 1, offsetSizesBufferId, offsetSizesBuffer);
+            buffer.SetComputeBufferParam(csTransformPositionShader, 1, aabbBufferId, aabbBuffer);
+            
+            buffer.SetComputeBufferParam(csTransformPositionShader, 1, indexBufferId, indexBuffer);
+
+            buffer.SetComputeIntParam(csTransformPositionShader, indexSizeId, matricesCount);
+            buffer.DispatchCompute(csTransformPositionShader, 1, indexCount2, 1, 1);
+            
             uint[] args = {0, 1, 0, 0};
             buffer.SetBufferData(argsBuffer, args, 0, 0, 4);
             buffer.SetBufferData(argsLineBuffer, args, 0, 0, 4);
@@ -386,6 +398,11 @@ namespace LynxRP
             descN.count = meshData.objCount;
             descN.stride = (4 * 4) * 4;
             pass.matricesBuffer = builder.WriteBuffer(renderGraph.CreateBuffer(descN));
+
+            descN.name = "AABB Buffer";
+            descN.count = meshData.objCount;
+            descN.stride = 2 * (4 * 3) + 4;
+            pass.aabbBuffer = builder.WriteBuffer(renderGraph.CreateBuffer(descN));
             
             var descT = new BufferDesc
             {

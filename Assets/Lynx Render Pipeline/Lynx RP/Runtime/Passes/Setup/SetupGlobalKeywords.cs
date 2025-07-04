@@ -52,15 +52,14 @@ namespace LynxRP
             camera.CalculateFrustumCorners(rect, camera.farClipPlane, Camera.MonoOrStereoscopicEye.Mono, frustumCornersFar);
             frustumCorners[0] = frustumCornersNear[0]; frustumCorners[1] = frustumCornersNear[1];
             frustumCorners[2] = frustumCornersNear[2]; frustumCorners[3] = frustumCornersNear[3];
-            frustumCorners[4] = frustumCornersFar[0]; frustumCorners[5] = frustumCornersFar[1];
-            frustumCorners[6] = frustumCornersFar[2]; frustumCorners[7] = frustumCornersFar[3];
+            frustumCorners[4] = frustumCornersFar[0];  frustumCorners[5] = frustumCornersFar[1];
+            frustumCorners[6] = frustumCornersFar[2];  frustumCorners[7] = frustumCornersFar[3];
 
             DebugNDC(ref mat, ref frustumCornersNear, ref frustumCornersFar);
         }
 
         void GetFrustumPlanes(ref Vector4[] frustumPlanes, ref Matrix4x4 mat)
         {
-
             Plane[] planes = GeometryUtility.CalculateFrustumPlanes(mat);
             int[] indexes = { 4, 5, 0, 1, 2, 3 };
             for (int i = 0; i < 6; i++)
@@ -160,7 +159,7 @@ namespace LynxRP
             IterateCorners(frustumCornersNear, P);
             // IterateCorners(frustumCornersFar, P);
 
-            void IterateCorners(Vector3[] frustumCorners, Matrix4x4 mat)
+            static void IterateCorners(Vector3[] frustumCorners, Matrix4x4 mat)
             {
                 foreach (var frustumCorner in frustumCorners)
                 {

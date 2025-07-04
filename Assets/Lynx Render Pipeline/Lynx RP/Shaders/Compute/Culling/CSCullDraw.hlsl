@@ -1,7 +1,7 @@
 #ifndef CUSTOM_CSCULL_DRAW_INCLUDED
 #define CUSTOM_CSCULL_DRAW_INCLUDED
 
-void DrawTriangle(Triangle triangleToDraw)
+void DrawTriangle(Triangle triangleToDraw, bool culled)
 {
     Vertex vertices[3];
     vertices[0] = triangleToDraw.v1;
@@ -11,7 +11,7 @@ void DrawTriangle(Triangle triangleToDraw)
     uint index;
     InterlockedAdd(_ArgsBuffer[0], 1 * VerticesInTri, index);
 
-    if (index % 2 == 0)
+    if (culled)
     {
         // vertices[0].position.x = 0./0.;
     }

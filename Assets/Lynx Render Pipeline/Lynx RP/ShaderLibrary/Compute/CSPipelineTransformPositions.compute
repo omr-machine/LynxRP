@@ -1,14 +1,20 @@
-#pragma kernel CSTransformToWorld           // 0
-#pragma kernel CSMatrixMultiply             // 1
+#pragma kernel CSMatrixMultiply       // 0
+#pragma kernel CSAABBCull             // 1
 
-#include <HLSLSupport.cginc>
+#include "../../ShaderLibrary/Compute/CSCommon.hlsl"
 #include "../../ShaderLibrary/Primitives.hlsl"
+#include "../../ShaderLibrary/BoundingShapes.hlsl"
+#include "../../ShaderLibrary/Culling/CullTests.hlsl"
 
 uint _IndexSize;
 
 RWStructuredBuffer<Vertex> _IndexBuffer;
 RWStructuredBuffer<int> _OffsetSizesBuffer;
 RWStructuredBuffer<float4x4> _MatricesBuffer;
+
+RWStructuredBuffer<AABBox> _AABBBuffer;
+
+RWStructuredBuffer<uint> _VoteBuffer;
 
 float3 LocalToWorld(float3 positionLS, float4x4 matLW)
 {
@@ -17,7 +23,7 @@ float3 LocalToWorld(float3 positionLS, float4x4 matLW)
 }
 
 [numthreads(256,1,1)]
-void CSTransformToWorld(uint3 id : SV_DispatchThreadID)
+void CSMatrixMultiply(uint3 id : SV_DispatchThreadID)
 {
     if (id.x >= _IndexSize)
     {
@@ -29,25 +35,38 @@ void CSTransformToWorld(uint3 id : SV_DispatchThreadID)
     
     for (uint i = vertIdxMin; i <= vertIdxMax; i++)
     {
-        Vertex vertices[3];
-        Vertex vertex;
-        vertex.position = LocalToWorld(_IndexBuffer[i].position, _MatricesBuffer[id.x]);
-        vertex.normal = _IndexBuffer[i].normal;
-        vertex.color = _IndexBuffer[i].color;
-        vertex.baseUV = _IndexBuffer[i].baseUV;
-        
-        //vertex.position.y += 10.0;
-        
-        vertices[i] = vertex;
-        _IndexBuffer[i] = vertices[i];
+        _IndexBuffer[i].position = LocalToWorld(_IndexBuffer[i].position, _MatricesBuffer[id.x]);
     }
 }
 
 [numthreads(256,1,1)]
-void CSMatrixMultiply(uint id : SV_DispatchThreadID)
+void CSAABBCull(uint3 id : SV_DispatchThreadID)
 {
     if (id.x >= _IndexSize)
     {
         return;
+    }
+    
+    bool triCull = 0;
+    BoxInFrustum(_FrustumPlanesWS, _AABBBuffer[id.x], _FrustumCornersWS, triCull);
+    
+    uint vertIdxMin = _OffsetSizesBuffer[id.x * 2];
+    uint vertIdxMax = vertIdxMin + _OffsetSizesBuffer[id.x * 2 + 1] - 1;
+
+    uint triIdxMin = vertIdxMin / 3;
+    uint triIdxMax = vertIdxMax / 3;
+    
+    for (uint i = vertIdxMin; i <= vertIdxMax; i++)
+    {
+        if (triCull)
+        {
+            _VoteBuffer[i] = 0;
+            // _IndexBuffer[i].normal = float3(10.0, 0.0, 10.0);
+        }
+        else
+        {
+            _VoteBuffer[i] = 1;
+            // _IndexBuffer[i].normal = float3(0.0, 10.0, 10.0);
+        }
     }
 }

@@ -34,10 +34,11 @@ namespace LynxRP
             if (settings.pipelineType == LynxRenderPipelineSettings.PipelineType.GPUDriven)
             {
                 interFrameData.UpdateVertexBuffer();
-                interFrameData.DebugInstanceIDs();
+                // interFrameData.DebugInstanceIDs();
                 // interFrameData.DebugInstanceMatrices();
-                interFrameData.DebugFinalList();
-                interFrameData.DebugFinalMatrices();
+                interFrameData.DebugInstanceBounds();
+                // interFrameData.DebugFinalList();
+                // interFrameData.DebugFinalMatrices();
             }
 
             for (int i = 0; i < cameras.Count; i++)
@@ -45,7 +46,7 @@ namespace LynxRP
                 renderer.Render(renderGraph, context, cameras[i], settings, ref interFrameData.meshData);
             }
             renderGraph.EndFrame();
-        }
+        } 
 
         protected override void Dispose (bool disposing)
         {

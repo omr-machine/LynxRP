@@ -25,6 +25,7 @@ public class DebugBB : MonoBehaviour
         MyFunction(ref boundsMesh, transform.localToWorldMatrix);
 
         // Debug.Log(gameObject.GetComponent<Renderer>().bounds);
+        // Debug.Log(gameObject.GetComponent<Renderer>().bounds.min + " '\n' " + gameObject.GetComponent<Renderer>().bounds.max);
     }
 
     void MyFunction(ref Bounds bounds, Matrix4x4 matrix)
