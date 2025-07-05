@@ -56,7 +56,7 @@ void CSAABBCull(uint3 id : SV_DispatchThreadID)
     uint triIdxMin = vertIdxMin / 3;
     uint triIdxMax = vertIdxMax / 3;
     
-    for (uint i = vertIdxMin; i <= vertIdxMax; i++)
+    for (uint i = triIdxMin; i <= triIdxMax; i++)
     {
         if (triCull)
         {

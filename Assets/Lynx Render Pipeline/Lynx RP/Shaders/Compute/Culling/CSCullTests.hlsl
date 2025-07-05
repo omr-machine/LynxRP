@@ -105,7 +105,9 @@ uint CullTests (uint idx, float3 positionsWS[3])
     
     if (triCull == 0 && _TriCullHiZ)
     {
+        #if defined(_HIZ_ON)
         CullHiZ(bboxSS, _ScreenParamsCull.xy, _MipLevelMax, triCull, level);
+        #endif
     }
 
     float4 debugColorBbox = float4(1, 1, 0, 0);

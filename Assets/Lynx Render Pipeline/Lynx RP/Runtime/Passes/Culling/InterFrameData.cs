@@ -35,8 +35,6 @@ namespace LynxRP
         readonly SortedDictionary<int, (int, int)> meshBufferOffsets = new();
         readonly SortedDictionary<int, Matrix4x4> meshMatrices = new ();
 
-        Bounds[] BBVerts = new Bounds[512];
-
         public void UpdateVertexBuffer()
         {
             var meshFilters = Object.FindObjectsByType<MeshFilter>(FindObjectsSortMode.None);
@@ -56,9 +54,8 @@ namespace LynxRP
             RemoveInstanceIDs(ref visibleObjectIDs);
             
             meshData.objCount = instanceIDs.Count;
-            UpdateMeshMatrices();
+            UpdateMeshMatricesAndBBs();
             PopulateDataForBuffer();
-            UpdateBBs();
         }
 
         private void RemoveInstanceIDs(ref SortedSet<int> visibleObjectIDs)
@@ -114,7 +111,7 @@ namespace LynxRP
             }
         }
 
-        void AddInstanceID(ref int instanceID, ref GameObject go, ref Mesh mesh)
+        private void AddInstanceID(ref int instanceID, ref GameObject go, ref Mesh mesh)
         {
             if (!instanceIDs.ContainsKey(instanceID))
             {
@@ -141,65 +138,38 @@ namespace LynxRP
             }
         }
 
-        public void UpdateMeshMatrices()
+        private void UpdateMeshMatricesAndBBs()
         {
+            meshData.BBs.Clear();
             foreach (var kvp in instanceIDs)
             {
                 int instanceID = kvp.Key;
                 GameObject go = kvp.Value;
                 meshMatrices[instanceID] = go.transform.localToWorldMatrix;
+                AddBB(go);
             }
         }
 
-        public void UpdateBBs()
+        private void AddBB(GameObject gameObject)
         {
-            meshData.BBs.Clear(); 
-
             MeshDefinitions.BBox bbox = new();
-            foreach (var kvp in instanceIDs)
-            {
-                Bounds bounds = kvp.Value.GetComponent<Renderer>().bounds;
-                bbox.minCorner = bounds.min;
-                bbox.maxCorner = bounds.max;
-                bbox.length = distance(bbox.maxCorner, bbox.minCorner);
-                meshData.BBs.Add(bbox);
-            }
+            Bounds bounds = gameObject.GetComponent<Renderer>().bounds;
+            bbox.minCorner = bounds.min;
+            bbox.maxCorner = bounds.max;
+            bbox.length = distance(bbox.maxCorner, bbox.minCorner);
+            meshData.BBs.Add(bbox);
         }
 
-        public void FillBBArray()
+        private void PopulateDataForBuffer()
         {
-            if (BBVerts.Length < instanceIDs.Count)
+            meshData.finalOffsetSizes.Clear();
+            meshData.finalMatrices.Clear();
+
+            foreach (var id in instanceIDs)
             {
-                var BBVertsLength = MeshDefinitions.NextPowerOfTwo((uint)instanceIDs.Count);
-                BBVerts = new Bounds[BBVertsLength];
-            }
-
-            for (int i = 0; i < instanceIDs.Count; i++)
-            {
-                BBVerts[i] = instanceIDs[i].GetComponent<Renderer>().bounds;
-            }
-        }
-
-        public void CullBBArray(ref Camera camera, ref NativeArray<int> voteBuffer)
-        {
-            Plane[] planes = GeometryUtility.CalculateFrustumPlanes(camera);
-
-            for (int i = 0; i < BBVerts.Length; i++)
-            {
-                voteBuffer[i] = GeometryUtility.TestPlanesAABB(planes, BBVerts[i]) ? 1 : 0;
-            }
-        }
-
-        public void JobsMeshesDispose()
-        {
-
-        }
-
-        public void DebugPrintBounds()
-        {
-            for (int i = 0; i < BBVerts.Length; i++)
-            {
-                Debug.Log(BBVerts[i]);
+                meshData.finalOffsetSizes.Add(meshBufferOffsets[id.Key].Item1);
+                meshData.finalOffsetSizes.Add(meshBufferOffsets[id.Key].Item2);
+                meshData.finalMatrices.Add(meshMatrices[id.Key]);
             }
         }
 
@@ -220,19 +190,6 @@ namespace LynxRP
             // {
             //     Debug.Log(meshData.meshBufferDefault[i].position);
             // }
-        }
-
-        void PopulateDataForBuffer()
-        {
-            meshData.finalOffsetSizes.Clear();
-            meshData.finalMatrices.Clear();
-
-            foreach(var id in instanceIDs)
-            {
-                meshData.finalOffsetSizes.Add(meshBufferOffsets[id.Key].Item1);
-                meshData.finalOffsetSizes.Add(meshBufferOffsets[id.Key].Item2);
-                meshData.finalMatrices   .Add(meshMatrices     [id.Key]);
-            }
         }
 
         public void DebugFinalMatrices()

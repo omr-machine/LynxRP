@@ -26,7 +26,7 @@ Shader "Custom RP/Other/Cull"
             // #pragma multi_compile _CULL_PASS_GEOMETRY_FLIPY
             #pragma multi_compile_instancing
             #pragma vertex CullPassVertex
-            #pragma geometry CullPassGeometry
+            // #pragma geometry CullPassGeometry
             #pragma fragment CullPassFragment
             #include "CullPass.hlsl"
             #include "CullPassGeometry.hlsl"

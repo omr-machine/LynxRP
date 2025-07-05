@@ -37,8 +37,19 @@ bool CheckForNaNOrInfinity(float3 a, float number)
     return false;
 }
 
+float fastInvSqrt(float x) {
+    float xhalf = 0.5f * x;
+    int i = asint(x);
+    i = 0x5f3759df - (i >> 1);
+    x = asfloat(i);
+    x = x * (1.5f - xhalf * x * x);
+    return x;
+}
+
 float getNaNSqrt(float value) {
-	return sqrt(value);
+	// return sqrt(value); // THROWS ERROR
+    // float x = 0./0.; log(-1.0); acos(2.0); // acos of value > 1  // THROWS WARNING?
+    return fastInvSqrt(value);
 }
 
 float invLerp(float from, float to, float value) {

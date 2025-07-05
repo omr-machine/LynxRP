@@ -60,10 +60,9 @@ void CSVote (uint3 id : SV_DispatchThreadID)
         if (_VoteBuffer[id.x] == 1)
         {
             triCull = CullTests(id.x, positions);
+            _VoteBuffer[id.x] = !triCull;
         }
     }
-    
-    _VoteBuffer[id.x] = !triCull;
 }
 
 groupshared uint interLockIndex;

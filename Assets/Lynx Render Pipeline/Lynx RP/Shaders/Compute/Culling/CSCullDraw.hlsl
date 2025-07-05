@@ -13,7 +13,7 @@ void DrawTriangle(Triangle triangleToDraw, bool culled)
 
     if (culled)
     {
-        // vertices[0].position.x = 0./0.;
+        vertices[0].position.x = getNaNSqrt(-1.0);
     }
     
     _VertexPassBuffer[index] = vertices[0];
