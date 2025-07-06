@@ -6,6 +6,8 @@
 #pragma kernel CSClearDebugTexture          // 4
 
 // #pragma enable_d3d11_debug_symbols
+// #pragma multi_compile_local HIZ_ON
+#pragma multi_compile_local _ _HIZ_ON
 
 #include "../../../ShaderLibrary/Compute/CSCommon.hlsl"
 #include "../../../ShaderLibrary/BoundingShapes.hlsl"
