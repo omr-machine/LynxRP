@@ -67,7 +67,7 @@ namespace LynxRP
                 target = GraphicsBuffer.Target.Structured
             };
             
-            BufferHandle pointBuffer =renderGraph.CreateBuffer(bufferDesc);
+            BufferHandle pointBuffer = renderGraph.CreateBuffer(bufferDesc);
             
             pass.hiZDepthRT = hiZDepthRT;
             
