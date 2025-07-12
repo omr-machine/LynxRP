@@ -1,4 +1,5 @@
 ![Alt text](LynxLogo.svg "a title")
+[![App Platorm](LynxLogo.svg "Lynx RP")](https://github.com/omr-machine/LynxRP)
 # Lynx RP
 
 A Unity SRP (Scriptable Render Pipeline) targeting Desktop (Windows, Linux), Web (WebGPU), and Console; with a focus on Simplicity, NPR, and Art Directability.
