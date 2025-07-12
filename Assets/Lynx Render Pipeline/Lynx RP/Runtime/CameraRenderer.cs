@@ -391,11 +391,10 @@ namespace LynxRP
                 PassesHiZSetup(ref renderGraph, ref textures, ref hiZData, bufferSize, settings);
             }
 
-            CullPass.Record(
-                renderGraph, bufferSize, camera,
-                cameraSettings, hiZData, textures,
-                settings.csCullShader, settings.csCompactShader, settings.csTransformPositionShader,
-                settings.cullShader,
+            PassesGPUDrivenCull(
+                ref renderGraph, camera, bufferSize,
+                settings, cameraSettings,
+                hiZData, textures,
                 ref meshData
             );
 
@@ -426,6 +425,45 @@ namespace LynxRP
                 hasActivePostFX,
                 textures, copier, lightResources
             );
+        }
+
+        void PassesGPUDrivenCull(
+            ref RenderGraph renderGraph, Camera camera, Vector2Int bufferSize,
+            LynxRenderPipelineSettings settings, CameraSettings cameraSettings,
+            HiZData hiZData, CameraRendererTextures textures,
+            ref InterFrameData.MeshJobsData meshData
+        )
+        {
+            GPUDrivenData gpuDrivenData = SetupGPUDrivenPass.Record(
+                renderGraph, textures,
+                settings.csTransformPositionShader, ref meshData
+            );
+            GPUDrivenInitPipelinePass.Record(
+                renderGraph, textures,
+                settings.csTransformPositionShader, ref meshData,
+                gpuDrivenData
+            );
+            GPUDrivenTriCullPass.Record(
+                renderGraph, bufferSize, cameraSettings, 
+                hiZData, textures,
+                settings.csCullShader,
+                meshData.indexCount, meshData.triCount,
+                gpuDrivenData
+            );
+            GPUDrivenIndirectDrawPass.Record(
+                renderGraph, cameraSettings, 
+                hiZData, textures,
+                settings.csCullShader, settings.cullShader,
+                meshData.indexCount, meshData.triCount,
+                gpuDrivenData
+            );
+            // CullPass.Record(
+            //     renderGraph, bufferSize, camera,
+            //     cameraSettings, hiZData, textures,
+            //     settings.csCullShader, settings.csCompactShader, settings.csTransformPositionShader,
+            //     settings.cullShader,
+            //     ref meshData
+            // );
         }
 
         void PassesHiZSetup(
