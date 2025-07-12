@@ -35,6 +35,9 @@ namespace LynxRP
             cullSmallId = Shader.PropertyToID("_TriCullSmall"),
             cullHiZId = Shader.PropertyToID("_TriCullHiZ");
 
+        static readonly int
+            mainLightDirID = Shader.PropertyToID("_MainLightDir");
+
         struct CameraMatrices
         {
             public Matrix4x4 matM, matV, matGLP, matVP;
@@ -122,9 +125,7 @@ namespace LynxRP
 
             buffer.SetGlobalVectorArray(frustumCornersVSId, frustumCornersVS);
             buffer.SetGlobalVectorArray(frustumCornersWSId, frustumCornersWS);
-            buffer.
-            
-            SetGlobalVectorArray(frustumPlanesWSId, frustumPlanes);
+            buffer.SetGlobalVectorArray(frustumPlanesWSId, frustumPlanes);
         }
 
         public void SetCullKeywords(CommandBuffer buffer, Vector2Int attachmentSize, int cullSettings)
@@ -152,6 +153,11 @@ namespace LynxRP
             SetCameraMatrixKeywords(buffer, camera);
             SetFrustumKeywords(buffer, camera);
             SetCullKeywords(buffer, attachmentSize, cullSettings);
+
+            Vector4 mainLightDir = RenderSettings.sun.gameObject.transform.forward;
+            // mainLightDir.z = -mainLightDir.z;
+            mainLightDir.w = 1.0f;
+            buffer.SetGlobalVector(mainLightDirID, mainLightDir);
         }
 
         void DebugNDC(ref Matrix4x4 P, ref Vector3[] frustumCornersNear, ref Vector3[] frustumCornersFar)

@@ -434,36 +434,36 @@ namespace LynxRP
             ref InterFrameData.MeshJobsData meshData
         )
         {
-            GPUDrivenData gpuDrivenData = SetupGPUDrivenPass.Record(
-                renderGraph, textures,
-                settings.csTransformPositionShader, ref meshData
-            );
-            GPUDrivenInitPipelinePass.Record(
-                renderGraph, textures,
-                settings.csTransformPositionShader, ref meshData,
-                gpuDrivenData
-            );
-            GPUDrivenTriCullPass.Record(
-                renderGraph, bufferSize, cameraSettings, 
-                hiZData, textures,
-                settings.csCullShader,
-                meshData.indexCount, meshData.triCount,
-                gpuDrivenData
-            );
-            GPUDrivenIndirectDrawPass.Record(
-                renderGraph, cameraSettings, 
-                hiZData, textures,
-                settings.csCullShader, settings.cullShader,
-                meshData.indexCount, meshData.triCount,
-                gpuDrivenData
-            );
-            // CullPass.Record(
-            //     renderGraph, bufferSize, camera,
-            //     cameraSettings, hiZData, textures,
-            //     settings.csCullShader, settings.csCompactShader, settings.csTransformPositionShader,
-            //     settings.cullShader,
-            //     ref meshData
+            // GPUDrivenData gpuDrivenData = SetupGPUDrivenPass.Record(
+            //     renderGraph, textures,
+            //     settings.csTransformPositionShader, ref meshData
             // );
+            // GPUDrivenInitPipelinePass.Record(
+            //     renderGraph, textures,
+            //     settings.csTransformPositionShader, ref meshData,
+            //     gpuDrivenData
+            // );
+            // GPUDrivenTriCullPass.Record(
+            //     renderGraph, bufferSize, cameraSettings, 
+            //     hiZData, textures,
+            //     settings.csCullShader,
+            //     meshData.indexCount, meshData.triCount,
+            //     gpuDrivenData
+            // );
+            // GPUDrivenIndirectDrawPass.Record(
+            //     renderGraph, cameraSettings, 
+            //     hiZData, textures,
+            //     settings.csCullShader, settings.cullShader,
+            //     meshData.indexCount, meshData.triCount,
+            //     gpuDrivenData
+            // );
+            CullPass.Record(
+                renderGraph, bufferSize, camera,
+                cameraSettings, hiZData, textures,
+                settings.csCullShader, settings.csCompactShader, settings.csTransformPositionShader,
+                settings.cullShader,
+                ref meshData
+            );
         }
 
         void PassesHiZSetup(

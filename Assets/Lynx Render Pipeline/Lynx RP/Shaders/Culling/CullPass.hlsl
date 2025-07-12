@@ -148,4 +148,115 @@ float4 CullPointPassFragment (VaryingsPoint input) : SV_TARGET
 	return float4(color.rgb, input.color.a);
 }
 
+// ######################################################
+// ######################################################
+// ######################################################
+// ######################################################
+
+struct InputConfig
+{
+	Fragment fragment;
+	float2 baseUV;
+	float2 detailUV;
+	bool useMask;
+	bool useDetail;
+};
+
+InputConfig GetInputConfig (float4 positionSS, float2 baseUV, float2 detailUV = 0.0)
+{
+	InputConfig c;
+	c.fragment = GetFragment(positionSS);
+	c.baseUV = baseUV;
+	c.detailUV = detailUV;
+	c.useMask = false;
+	c.useDetail = false;
+	return c;
+}
+
+float GetFinalAlpha (float alpha) {
+	return INPUT_PROP(_ZWrite) ? 1.0 : alpha;
+}
+
+#include "../../ShaderLibrary/Surface.hlsl"
+#include "../../ShaderLibrary/Shadows.hlsl"
+#include "../../ShaderLibrary/Light.hlsl"
+#include "../../ShaderLibrary/BRDF.hlsl"
+#include "../../ShaderLibrary/GI.hlsl"
+#include "../../ShaderLibrary/Lighting.hlsl"
+
+float4 _MainLightDir;
+
+float hash11(float p)
+{
+	p = frac(p * .1031);
+	p *= p + 33.33;
+	p *= p + p;
+	return frac(p);
+}
+
+float cull_noise_randomValue(float2 st) {
+	return frac(sin(dot(st.xy, float2(12.9898, 78.233))) * 43758.5453123);
+}
+
+// Generate a random color using a seed
+float3 randomColor(float2 seed) {
+	float r = cull_noise_randomValue(seed);
+	float g = cull_noise_randomValue(seed + float2(1.0, 0.0));
+	float b = cull_noise_randomValue(seed + float2(0.0, 1.0));
+	return float3(r, g, b);
+}
+
+Varyings LitGPUDrivenPassVertex (uint id : SV_VertexID)
+{
+	Varyings output;
+	UNITY_SETUP_INSTANCE_ID(input);
+	UNITY_TRANSFER_INSTANCE_ID(input, output);
+	output.positionWS = _VertexPassBuffer[id].position;
+	output.positionCS_SS = TransformWorldToHClip(output.positionWS);
+	output.normalWS = _VertexPassBuffer[id].normal;
+	output.color = float4(randomColor(_VertexPassBuffer[id].color.xy), 1.0);
+	output.baseUV = _VertexPassBuffer[id].baseUV;
+	output.baseId = id;
+	
+	return output;
+}
+
+float4 LitGPUDrivenPassFragment (Varyings input) : SV_TARGET
+{
+	UNITY_SETUP_INSTANCE_ID(input);
+
+	InputConfig config = GetInputConfig(input.positionCS_SS, input.baseUV);
+	
+	float4 base = float4(input.color.xyz, 1.0);
+    
+	Surface surface;
+	surface.position = input.positionWS;
+	surface.normal = normalize(input.normalWS);
+	surface.interpolatedNormal = surface.normal;
+	surface.viewDirection = normalize(_WorldSpaceCameraPos - input.positionWS);
+	surface.depth = -TransformWorldToView(input.positionWS).z;
+	surface.color = base.rgb;
+	surface.alpha = base.a;
+	surface.metallic = hash11(input.baseId);
+	surface.smoothness = hash11(input.baseId + 10);
+	surface.occlusion = hash11(input.baseId + 100);
+	surface.fresnelStrength = hash11(input.baseId + 1000);
+	surface.dither = InterleavedGradientNoise(config.fragment.positionSS, 0);
+	surface.renderingLayerMask = asuint(unity_RenderingLayer.x);
+
+	#if defined(_PREMULTIPLY_ALPHA)
+	BRDF brdf = GetBRDF(surface, true);
+	#else
+	BRDF brdf = GetBRDF(surface);
+	#endif
+	GI gi = GetGI(GI_FRAGMENT_DATA(input), surface, brdf);
+	float3 color = GetLighting(config.fragment, surface, brdf, gi);
+	// color += float4(randomColor(float2(input.baseId, input.baseId)), 1.0);
+	color = _MainLightDir;
+	color = max(0.02, -dot(color.xyz, surface.normal));
+	color *= surface.color;
+	return float4(color, GetFinalAlpha(surface.alpha));
+}
+
+
 #endif

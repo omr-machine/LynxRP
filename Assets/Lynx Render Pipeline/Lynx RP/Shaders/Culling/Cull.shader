@@ -65,5 +65,21 @@ Shader "Custom RP/Other/Cull"
             #include "CullPass.hlsl"
             ENDHLSL
         }
+
+        Pass 
+        {
+            Name "GPUDriven Test"
+
+            Blend [_SrcBlend] [_DstBlend], One OneMinusSrcAlpha
+            ZWrite [_ZWrite]
+
+            HLSLPROGRAM
+            #pragma target 5.0
+            #pragma multi_compile_instancing
+            #pragma vertex LitGPUDrivenPassVertex
+            #pragma fragment LitGPUDrivenPassFragment
+            #include "CullPass.hlsl"
+            ENDHLSL
+        }
     }
 }

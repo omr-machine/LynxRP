@@ -124,13 +124,15 @@ namespace LynxRP
                 meshData.indexCount += indexCount;
                 meshData.triCount   += indexCount / 3;
 
+                Vector4 objectColor = (Vector4)UnityEngine.Random.ColorHSV(0f, 1f, 0f, 1f, 0f, 1f);
+
                 foreach (int index in mesh.GetIndices(0))
                 {
                     MeshDefinitions.Vertex vertex = new()
                     {
                         position = mesh.vertices[index],
                         normal = mesh.normals[index],
-                        color = (Vector4)Color.white,
+                        color = objectColor,
                         uv = mesh.uv[index]
                     };
                     meshData.meshBufferDefault.Add(vertex);

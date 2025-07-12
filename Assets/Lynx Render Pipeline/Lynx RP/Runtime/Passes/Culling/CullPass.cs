@@ -287,7 +287,7 @@ namespace LynxRP
             
             buffer.DrawProceduralIndirect(
                 Matrix4x4.identity,
-                cullMaterial, 0,
+                cullMaterial, 3,
                 MeshTopology.Triangles, argsBuffer);
             
             // buffer.DrawProceduralIndirect(
@@ -295,10 +295,10 @@ namespace LynxRP
 	           //  cullMaterial, 1,
 	           //  MeshTopology.Lines, argsLineBuffer);
             
-            buffer.DrawProceduralIndirect(
-                Matrix4x4.identity,
-                cullMaterial, 2,
-                MeshTopology.Points, argsQuadBuffer);
+            // buffer.DrawProceduralIndirect(
+            //     Matrix4x4.identity,
+            //     cullMaterial, 2,
+            //     MeshTopology.Points, argsQuadBuffer);
 
             if (cullHiZ)
             {
