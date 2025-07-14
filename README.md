@@ -1,4 +1,7 @@
-![LOGO](LynxLogo.png "a title")
+<p align="center">
+<img src="https://raw.githubusercontent.com/omr-machine/LynxRP/refs/heads/documentation/LynxLogo.svg" height="150">
+</p>
+<h1 align="center">
 
 # Lynx RP
 
