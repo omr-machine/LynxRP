@@ -1,5 +1,6 @@
-![LOGO](LynxLogo.svg "a title")
 # Lynx RP
+
+![LOGO](LynxLogo.svg "a title")
 
 A Unity SRP (Scriptable Render Pipeline) targeting Desktop (Windows, Linux), Web (WebGPU), and Console; with a focus on Simplicity, NPR, and Art Directability.
 
