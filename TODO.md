@@ -6,7 +6,10 @@
     * Better management of mesh data on the CPU
     * Software Rasterisation
     * Visibility Rendering
+    * ~~Pass Matrices to GPU~~
+    * ~~Pass AABBs to GPU~~
 - ~~Compute Culling~~
+  * ~~Object Level Frustum Culling~~
   * ~~Frustum Culling~~
   * ~~Heirarchical Z~~
   * ~~Small Primitive Culling~~
