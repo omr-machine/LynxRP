@@ -1,10 +1,5 @@
-<p align="center">
-<img src="https://raw.githubusercontent.com/omr-machine/LynxRP/refs/heads/documentation/LynxLogo.svg" height="150">
-</p>
-
-<h1 align="center">
+![LOGO](LynxLogo.svg "a title")
 # Lynx RP
-</h1>
 
 A Unity SRP (Scriptable Render Pipeline) targeting Desktop (Windows, Linux), Web (WebGPU), and Console; with a focus on Simplicity, NPR, and Art Directability.
 
