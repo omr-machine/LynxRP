@@ -1,5 +1,9 @@
 # Lynx RP
 
+![LOGO](LynxLogo.png "a title")
+
+
+
 A Unity SRP (Scriptable Render Pipeline) targeting Desktop (Windows, Linux), Web (WebGPU), and Console; with a focus on Simplicity, NPR, and Art Directability.
 
 Originally this RP was based on the tutorial by [Catlike Coding](https://catlikecoding.com/unity/tutorials/custom-srp/), which I was following to learn about Rendering and Graphics. I have been adding my own features since then (ex Deferred Rendering, GPU Culling, etc). Wanting to showcase the work I have done, and have it potentially help others learn about SRPs, I decided to share the project online.
@@ -44,3 +48,9 @@ Read TODO.md.
 
 ## References 
 Read REFERENCES.md.
+
+## Renders
+### Forward:
+![LOGO](Renders/Render-Scn2-Forward.jpg "a title")
+### GPUDriven:
+![LOGO](Renders/Render-Scn2-GPUDriven.jpg "a title")
