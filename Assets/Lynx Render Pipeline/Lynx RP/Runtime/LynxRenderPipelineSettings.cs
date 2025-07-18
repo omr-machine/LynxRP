@@ -37,7 +37,7 @@ namespace LynxRP
 
         public Shader deferredShader;
         
-        public ComputeShader csCullShader, csCompactShader, csHiZShader;
+        public ComputeShader csTransformPositionShader, csCullShader, csCompactShader, csHiZShader;
         public Shader cullShader, hiZShader;
         
         public RenderTexture debugHiZRT;

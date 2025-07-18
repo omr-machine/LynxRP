@@ -6,6 +6,8 @@
 #pragma kernel CSClearDebugTexture          // 4
 
 // #pragma enable_d3d11_debug_symbols
+// #pragma multi_compile_local HIZ_ON
+#pragma multi_compile_local _ _HIZ_ON
 
 #include "../../../ShaderLibrary/Compute/CSCommon.hlsl"
 #include "../../../ShaderLibrary/BoundingShapes.hlsl"
@@ -48,7 +50,7 @@ void CSComposeTriangles (uint3 id : SV_DispatchThreadID)
 
 [numthreads(NumThreadsXMax,1,1)]
 void CSVote (uint3 id : SV_DispatchThreadID)
-{ 
+{
     float3 positions[3];
     positions[0] = _TriangleBuffer[id.x].v1.position;
     positions[1] = _TriangleBuffer[id.x].v2.position;
@@ -57,10 +59,12 @@ void CSVote (uint3 id : SV_DispatchThreadID)
     uint triCull = id.x >= _IndexSize;
     if (triCull == 0)
     {
-        triCull = CullTests(id.x, positions);
+        if (_VoteBuffer[id.x] == 1)
+        {
+            triCull = CullTests(id.x, positions);
+            _VoteBuffer[id.x] = !triCull;
+        }
     }
-    
-    _VoteBuffer[id.x] = !triCull;
 }
 
 groupshared uint interLockIndex;
@@ -85,7 +89,7 @@ void CSPrepareIndirectTriangles (uint3 id : SV_DispatchThreadID)
     {
         // return;
     }
-    DrawTriangle(_TriangleBuffer[id.x]);
+    DrawTriangle(_TriangleBuffer[id.x], culled);
 }
 
 groupshared uint interLockIndexQuad;

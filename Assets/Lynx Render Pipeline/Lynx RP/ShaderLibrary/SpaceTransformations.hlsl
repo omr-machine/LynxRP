@@ -37,6 +37,12 @@ float LinearizeDepth(float depth, float near, float far) {
 	return depthLinear;
 }
 
+float3 LocalToWorld(float3 positionLS, float4x4 matLW)
+{
+	float3 positionWS = mul(matLW, float4(positionLS.xyz, 1.0)).xyz;
+	return positionWS;
+}
+
 float3 WorldToView(float3 positionWS)
 {
 	float3 positionVS = mul(_MatrixV, float4(positionWS.xyz, 1.0)).xyz; // - _CameraPosition

@@ -35,6 +35,9 @@ namespace LynxRP
             cullSmallId = Shader.PropertyToID("_TriCullSmall"),
             cullHiZId = Shader.PropertyToID("_TriCullHiZ");
 
+        static readonly int
+            mainLightDirID = Shader.PropertyToID("_MainLightDir");
+
         struct CameraMatrices
         {
             public Matrix4x4 matM, matV, matGLP, matVP;
@@ -52,15 +55,14 @@ namespace LynxRP
             camera.CalculateFrustumCorners(rect, camera.farClipPlane, Camera.MonoOrStereoscopicEye.Mono, frustumCornersFar);
             frustumCorners[0] = frustumCornersNear[0]; frustumCorners[1] = frustumCornersNear[1];
             frustumCorners[2] = frustumCornersNear[2]; frustumCorners[3] = frustumCornersNear[3];
-            frustumCorners[4] = frustumCornersFar[0]; frustumCorners[5] = frustumCornersFar[1];
-            frustumCorners[6] = frustumCornersFar[2]; frustumCorners[7] = frustumCornersFar[3];
+            frustumCorners[4] = frustumCornersFar[0];  frustumCorners[5] = frustumCornersFar[1];
+            frustumCorners[6] = frustumCornersFar[2];  frustumCorners[7] = frustumCornersFar[3];
 
             DebugNDC(ref mat, ref frustumCornersNear, ref frustumCornersFar);
         }
 
         void GetFrustumPlanes(ref Vector4[] frustumPlanes, ref Matrix4x4 mat)
         {
-
             Plane[] planes = GeometryUtility.CalculateFrustumPlanes(mat);
             int[] indexes = { 4, 5, 0, 1, 2, 3 };
             for (int i = 0; i < 6; i++)
@@ -123,9 +125,7 @@ namespace LynxRP
 
             buffer.SetGlobalVectorArray(frustumCornersVSId, frustumCornersVS);
             buffer.SetGlobalVectorArray(frustumCornersWSId, frustumCornersWS);
-            buffer.
-            
-            SetGlobalVectorArray(frustumPlanesWSId, frustumPlanes);
+            buffer.SetGlobalVectorArray(frustumPlanesWSId, frustumPlanes);
         }
 
         public void SetCullKeywords(CommandBuffer buffer, Vector2Int attachmentSize, int cullSettings)
@@ -153,6 +153,11 @@ namespace LynxRP
             SetCameraMatrixKeywords(buffer, camera);
             SetFrustumKeywords(buffer, camera);
             SetCullKeywords(buffer, attachmentSize, cullSettings);
+
+            Vector4 mainLightDir = RenderSettings.sun.gameObject.transform.forward;
+            // mainLightDir.z = -mainLightDir.z;
+            mainLightDir.w = 1.0f;
+            buffer.SetGlobalVector(mainLightDirID, mainLightDir);
         }
 
         void DebugNDC(ref Matrix4x4 P, ref Vector3[] frustumCornersNear, ref Vector3[] frustumCornersFar)
@@ -160,7 +165,7 @@ namespace LynxRP
             IterateCorners(frustumCornersNear, P);
             // IterateCorners(frustumCornersFar, P);
 
-            void IterateCorners(Vector3[] frustumCorners, Matrix4x4 mat)
+            static void IterateCorners(Vector3[] frustumCorners, Matrix4x4 mat)
             {
                 foreach (var frustumCorner in frustumCorners)
                 {

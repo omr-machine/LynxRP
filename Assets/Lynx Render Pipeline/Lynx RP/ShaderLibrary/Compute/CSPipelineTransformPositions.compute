@@ -1,0 +1,72 @@
+#pragma kernel CSMatrixMultiply       // 0
+#pragma kernel CSAABBCull             // 1
+
+#include "../../ShaderLibrary/Compute/CSCommon.hlsl"
+#include "../../ShaderLibrary/Primitives.hlsl"
+#include "../../ShaderLibrary/BoundingShapes.hlsl"
+#include "../../ShaderLibrary/Culling/CullTests.hlsl"
+
+uint _IndexSize;
+
+RWStructuredBuffer<Vertex> _IndexBuffer;
+RWStructuredBuffer<int> _OffsetSizesBuffer;
+RWStructuredBuffer<float4x4> _MatricesBuffer;
+
+RWStructuredBuffer<AABBox> _AABBBuffer;
+
+RWStructuredBuffer<uint> _VoteBuffer;
+
+float3 LocalToWorld(float3 positionLS, float4x4 matLW)
+{
+    float3 positionWS = mul(matLW, float4(positionLS.xyz, 1.0)).xyz;
+    return positionWS;
+}
+
+[numthreads(256,1,1)]
+void CSMatrixMultiply(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= _IndexSize)
+    {
+        return;
+    }
+    
+    uint vertIdxMin = _OffsetSizesBuffer[id.x * 2];
+    uint vertIdxMax = vertIdxMin + _OffsetSizesBuffer[id.x * 2 + 1] - 1;
+    
+    for (uint i = vertIdxMin; i <= vertIdxMax; i++)
+    {
+        _IndexBuffer[i].position = LocalToWorld(_IndexBuffer[i].position, _MatricesBuffer[id.x]);
+    }
+}
+
+[numthreads(256,1,1)]
+void CSAABBCull(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= _IndexSize)
+    {
+        return;
+    }
+    
+    bool triCull = 0;
+    BoxInFrustum(_FrustumPlanesWS, _AABBBuffer[id.x], _FrustumCornersWS, triCull);
+    
+    uint vertIdxMin = _OffsetSizesBuffer[id.x * 2];
+    uint vertIdxMax = vertIdxMin + _OffsetSizesBuffer[id.x * 2 + 1] - 1;
+
+    uint triIdxMin = vertIdxMin / 3;
+    uint triIdxMax = vertIdxMax / 3;
+    
+    for (uint i = triIdxMin; i <= triIdxMax; i++)
+    {
+        if (triCull)
+        {
+            _VoteBuffer[i] = 0;
+            // _IndexBuffer[i].normal = float3(10.0, 0.0, 10.0);
+        }
+        else
+        {
+            _VoteBuffer[i] = 1;
+            // _IndexBuffer[i].normal = float3(0.0, 10.0, 10.0);
+        }
+    }
+}

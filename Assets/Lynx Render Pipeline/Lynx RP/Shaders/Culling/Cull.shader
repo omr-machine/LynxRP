@@ -26,7 +26,7 @@ Shader "Custom RP/Other/Cull"
             // #pragma multi_compile _CULL_PASS_GEOMETRY_FLIPY
             #pragma multi_compile_instancing
             #pragma vertex CullPassVertex
-            #pragma geometry CullPassGeometry
+            // #pragma geometry CullPassGeometry
             #pragma fragment CullPassFragment
             #include "CullPass.hlsl"
             #include "CullPassGeometry.hlsl"
@@ -62,6 +62,22 @@ Shader "Custom RP/Other/Cull"
             #pragma multi_compile_instancing
             #pragma vertex CullPointPassVertex
             #pragma fragment CullPointPassFragment
+            #include "CullPass.hlsl"
+            ENDHLSL
+        }
+
+        Pass 
+        {
+            Name "GPUDriven Test"
+
+            Blend [_SrcBlend] [_DstBlend], One OneMinusSrcAlpha
+            ZWrite [_ZWrite]
+
+            HLSLPROGRAM
+            #pragma target 5.0
+            #pragma multi_compile_instancing
+            #pragma vertex LitGPUDrivenPassVertex
+            #pragma fragment LitGPUDrivenPassFragment
             #include "CullPass.hlsl"
             ENDHLSL
         }

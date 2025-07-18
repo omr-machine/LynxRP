@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Lynx RP
   m_EditorClassIdentifier: 
   settings:
-    pipelineType: 0
+    pipelineType: 2
     cameraBuffer:
       allowHDR: 1
       copyColor: 1
@@ -63,6 +63,8 @@ MonoBehaviour:
     cameraDebuggerShader: {fileID: 4800000, guid: e24ab36d0058c6cf7ad4623a2a6d957e,
       type: 3}
     deferredShader: {fileID: 4800000, guid: 0af0f4325dafe112ea60f7f46be28d3b, type: 3}
+    csTransformPositionShader: {fileID: 7200000, guid: bdb31e1351e19c002a5398130d3d0707,
+      type: 3}
     csCullShader: {fileID: 7200000, guid: 0e394126bc9cbe19da66067b6179f482, type: 3}
     csCompactShader: {fileID: 7200000, guid: 1a168c7e328fcd82eab67ea9971975ce, type: 3}
     csHiZShader: {fileID: 7200000, guid: dbfde1f4070f8d73d90ab6a821740df4, type: 3}
