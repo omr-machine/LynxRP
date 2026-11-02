@@ -28,9 +28,9 @@ namespace LynxRP
         
         const uint numThreadsMax = 16;
 
-        void Render(RenderGraphContext context)
+        void Render(UnsafeGraphContext context)
         {
-            CommandBuffer buffer = context.cmd;
+            UnsafeCommandBuffer buffer = context.cmd;
             
             buffer.SetGlobalTexture(debugDepthPrevID, hiZInterFrameRT);
             
@@ -49,9 +49,6 @@ namespace LynxRP
             int workGroupsY = Mathf.CeilToInt(mipParams.y / numThreadsMax);
             
             buffer.DispatchCompute(csHiZShader, 2, workGroupsX, workGroupsY, 1);
-            
-            context.renderContext.ExecuteCommandBuffer(buffer);
-            buffer.Clear();
         }
 
         public static void Record(
@@ -61,17 +58,23 @@ namespace LynxRP
             in HiZData hiZData
         )
         {
-            using RenderGraphBuilder builder =
-                renderGraph.AddRenderPass(sampler.name, out HiZReprojectPass pass, sampler);
+            using IUnsafeRenderGraphBuilder builder =
+                renderGraph.AddUnsafePass(sampler.name, out HiZReprojectPass pass, sampler);
             
             pass.csHiZShader = csHiZShader;
             pass.attachmentSize = attachmentSize;
 
-            pass.hiZDepthRT = builder.WriteTexture(hiZData.hiZDepthRT);
-            pass.hiZInterFrameRT = builder.WriteTexture(hiZData.hiZInterFrameRT);
-            pass.hiZPrevFrameDataRT = builder.WriteTexture(hiZData.hiZPrevFrameDataRT);
+            pass.hiZDepthRT = hiZData.hiZDepthRT;
+            pass.hiZInterFrameRT = hiZData.hiZInterFrameRT;
+            pass.hiZPrevFrameDataRT = hiZData.hiZPrevFrameDataRT;
+
+            builder.UseTexture(pass.hiZDepthRT, AccessFlags.WriteAll);
+            builder.UseTexture(pass.hiZInterFrameRT, AccessFlags.WriteAll);
+            builder.UseTexture(pass.hiZPrevFrameDataRT, AccessFlags.WriteAll);
             
-            pass.pointBuffer = builder.WriteBuffer(hiZData.pointBuffer);
+            pass.pointBuffer = hiZData.pointBuffer;
+
+            builder.UseBuffer(pass.pointBuffer, AccessFlags.WriteAll);
 
             builder.AllowPassCulling(false);
             builder.SetRenderFunc<HiZReprojectPass>(

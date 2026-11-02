@@ -29,9 +29,9 @@ namespace LynxRP
 
         float blurOffset = 3.0f; //0.01f; //0 - 10
 
-        void Render(RenderGraphContext context)
+        void Render(UnsafeGraphContext context)
         {
-            CommandBuffer buffer = context.cmd;
+            UnsafeCommandBuffer buffer = context.cmd;
 
             buffer.SetGlobalFloat(msaaBlurOffsetID, blurOffset);
 
@@ -66,9 +66,6 @@ namespace LynxRP
                 );
 
             buffer.DrawProcedural(Matrix4x4.identity, msaaDownscaleMaterial, 2, MeshTopology.Triangles, 3);
-
-            context.renderContext.ExecuteCommandBuffer(buffer);
-            buffer.Clear();
         }
 
         public static void Record(
@@ -79,21 +76,26 @@ namespace LynxRP
             in CameraRendererTextures textures
         )
         {
-            using RenderGraphBuilder builder =
-                renderGraph.AddRenderPass(sampler.name, out MSAADownscalePass pass, sampler);
+            using IUnsafeRenderGraphBuilder builder =
+                renderGraph.AddUnsafePass(sampler.name, out MSAADownscalePass pass, sampler);
             
             var desc = new TextureDesc(attachmentSize.x, attachmentSize.y)
             {
                 colorFormat = SystemInfo.GetGraphicsFormat(UnityEngine.Experimental.Rendering.DefaultFormat.HDR),
                 name = "Half Texture",
             };
-            pass.halfTexture = builder.WriteTexture(renderGraph.CreateTexture(desc));
+            pass.halfTexture = renderGraph.CreateTexture(desc);
             desc.width = attachmentSize.x / 2; desc.height = attachmentSize.y / 2;
-            pass.quarterTexture = builder.WriteTexture(renderGraph.CreateTexture(desc));
+            pass.quarterTexture = renderGraph.CreateTexture(desc);
             desc.width = attachmentSize.x / 4; desc.height = attachmentSize.y / 4;
-            pass.eighthTexture = builder.WriteTexture(renderGraph.CreateTexture(desc));
+            pass.eighthTexture = renderGraph.CreateTexture(desc);
             desc.width = attachmentSize.x / 8; desc.height = attachmentSize.y / 8;
-            pass.sixteenthTexture = builder.WriteTexture(renderGraph.CreateTexture(desc));
+            pass.sixteenthTexture = renderGraph.CreateTexture(desc);
+
+            builder.UseTexture(pass.halfTexture, AccessFlags.WriteAll);
+            builder.UseTexture(pass.quarterTexture, AccessFlags.WriteAll);
+            builder.UseTexture(pass.eighthTexture, AccessFlags.WriteAll);
+            builder.UseTexture(pass.sixteenthTexture, AccessFlags.WriteAll);
 
             pass.msaaDownscaleShader = msaaDownscaleShader;
             if (pass.msaaDownscaleShader != null)
@@ -102,13 +104,21 @@ namespace LynxRP
                 pass.msaaDownscaleMaterial.hideFlags = HideFlags.HideAndDontSave;
             }
 
-            pass.msaaFillColor = builder.ReadTexture(msaaTextures.msaaFill);
-            pass.msaaFillDepth = builder.ReadTexture(msaaTextures.msaaFillDepth);
-            pass.msaaBlurColor = builder.WriteTexture(msaaTextures.msaaBlur);
-            pass.msaaBlurDepth = builder.WriteTexture(msaaTextures.msaaBlurDepth);
+            pass.msaaFillColor = msaaTextures.msaaFill;
+            pass.msaaFillDepth = msaaTextures.msaaFillDepth;
+            pass.msaaBlurColor = msaaTextures.msaaBlur;
+            pass.msaaBlurDepth = msaaTextures.msaaBlurDepth;
 
-            pass.colorAttachment = builder.ReadWriteTexture(textures.colorAttachment);
-            pass.depthAttachment = builder.ReadWriteTexture(textures.depthAttachment);
+            builder.UseTexture(pass.msaaFillColor);
+            builder.UseTexture(pass.msaaFillDepth);
+            builder.UseTexture(pass.msaaBlurColor, AccessFlags.WriteAll);
+            builder.UseTexture(pass.msaaBlurDepth, AccessFlags.WriteAll);
+
+            pass.colorAttachment = textures.colorAttachment;
+            pass.depthAttachment = textures.depthAttachment;
+
+            builder.UseTexture(pass.colorAttachment, AccessFlags.ReadWrite);
+            builder.UseTexture(pass.depthAttachment, AccessFlags.ReadWrite);
             
             builder.AllowPassCulling(false);
             builder.SetRenderFunc<MSAADownscalePass>(

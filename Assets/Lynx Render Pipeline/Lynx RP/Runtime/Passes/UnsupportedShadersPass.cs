@@ -25,22 +25,20 @@ namespace LynxRP
 
             RendererListHandle list;
 
-            void Render(RenderGraphContext context) 
+            void Render(UnsafeGraphContext context) 
             {
                 context.cmd.DrawRendererList(list);
-                context.renderContext.ExecuteCommandBuffer(context.cmd);
-                context.cmd.Clear();
             }
 
         #endif
 
         [Conditional("UNITY_EDITOR")]
         public static void Record(
-            RenderGraph renderGraph, Camera camera, CullingResults cullingResults
+            RenderGraph renderGraph, Camera camera, CullingResults cullingResults, in CameraRendererTextures textures
         )
         {
             #if UNITY_EDITOR
-                using RenderGraphBuilder builder = renderGraph.AddRenderPass(
+                using IUnsafeRenderGraphBuilder builder = renderGraph.AddUnsafePass(
                     sampler.name, out UnsupportedShadersPass pass, sampler
                 );
                 if (errorMaterial == null)
@@ -48,13 +46,16 @@ namespace LynxRP
                     errorMaterial = new Material(Shader.Find("Hidden/InternalErrorShader"));
                 }
 
-                pass.list = builder.UseRendererList(renderGraph.CreateRendererList(
+                pass.list = renderGraph.CreateRendererList(
                     new RendererListDesc(shaderTagIDs, cullingResults, camera)
                     {
                         overrideMaterial = errorMaterial,
                         renderQueueRange = RenderQueueRange.all
                     }
-                ));
+                );
+                builder.UseRendererList(pass.list);
+                builder.UseTexture(textures.colorAttachment, AccessFlags.ReadWrite);
+                builder.UseTexture(textures.depthAttachment, AccessFlags.ReadWrite);
                 
                 builder.SetRenderFunc<UnsupportedShadersPass>(
                     static (pass, context) => pass.Render(context)

@@ -14,7 +14,7 @@ namespace LynxRP
 
         // int renderingLayerMask;
 
-        // void Render(RenderGraphContext context) => renderer.DrawVisibleGeometry(
+        // void Render(UnsafeGraphContext context) => renderer.DrawVisibleGeometry(
         //     useDynamicBatching, useGPUInstancing, renderingLayerMask
         // );
 
@@ -24,8 +24,8 @@ namespace LynxRP
         //     int renderingLayerMask
         // )
         // {
-        //     using RenderGraphBuilder builder =
-        //         renderGraph.AddRenderPass(sampler.name, out VisibleGeometryPass pass, sampler);
+        //     using IUnsafeRenderGraphBuilder builder =
+        //         renderGraph.AddUnsafePass(sampler.name, out VisibleGeometryPass pass, sampler);
         //     pass.renderer = renderer;
         //     pass.useDynamicBatching = useDynamicBatching;
         //     pass.useGPUInstancing = useGPUInstancing;

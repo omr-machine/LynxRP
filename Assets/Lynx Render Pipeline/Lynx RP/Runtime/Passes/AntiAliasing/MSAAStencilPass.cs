@@ -14,9 +14,9 @@ namespace LynxRP
 
         static ShaderTagId[] shaderTagId = 
         {
-            new ShaderTagId("MSAAStencil"),
-            new ShaderTagId("CustomLit"),
-            new ShaderTagId("SRPDefaultUnlit")
+            new("MSAAStencil"),
+            new("CustomLit"),
+            new("SRPDefaultUnlit")
         };
 
         RendererListHandle list;
@@ -29,9 +29,9 @@ namespace LynxRP
 
         int width, height;
 
-        void Render(RenderGraphContext context)
+        void Render(UnsafeGraphContext context)
         {
-            CommandBuffer buffer = context.cmd;
+            UnsafeCommandBuffer buffer = context.cmd;
 
             buffer.SetRenderTarget(msaaStencil, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store);
             buffer.DrawRendererList(list);
@@ -43,8 +43,6 @@ namespace LynxRP
                 colorAttachment, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store,
                 depthAttachment, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store
             );
-            context.renderContext.ExecuteCommandBuffer(buffer);
-            buffer.Clear();
         }
 
         public static MSAARenderTextures Record(
@@ -57,24 +55,28 @@ namespace LynxRP
             in CameraRendererTextures textures
         )
         {
-            using RenderGraphBuilder builder =
-                renderGraph.AddRenderPass(sampler.name, out MSAAStencilPass pass, sampler);
+            using IUnsafeRenderGraphBuilder builder =
+                renderGraph.AddUnsafePass(sampler.name, out MSAAStencilPass pass, sampler);
 
-            pass.colorAttachment = builder.ReadTexture(textures.colorAttachment);
-            pass.depthAttachment = builder.ReadTexture(textures.depthAttachment);
+            pass.colorAttachment = textures.colorAttachment;
+            pass.depthAttachment = textures.depthAttachment;
             pass.msaaStencilShader = msaaStencilShader;
+
+            builder.UseTexture(pass.colorAttachment);
+            builder.UseTexture(pass.depthAttachment);
             
-            pass.list = builder.UseRendererList(renderGraph.CreateRendererList(
+            pass.list = renderGraph.CreateRendererList(
                 new RendererListDesc(shaderTagId, cullingResults, camera)
-                {
-                    sortingCriteria = SortingCriteria.CommonOpaque,
-                    // rendererConfiguration = PerObjectData.None,
-                    renderQueueRange = RenderQueueRange.opaque,
-                    renderingLayerMask = (uint)renderingLayerMask,
-                    // overrideMaterial = pass.msaaStencilMaterial,
-                    overrideShader = pass.msaaStencilShader
-                }
-            ));
+                    {
+                        sortingCriteria = SortingCriteria.CommonOpaque,
+                        // rendererConfiguration = PerObjectData.None,
+                        renderQueueRange = RenderQueueRange.opaque,
+                        renderingLayerMask = (uint)renderingLayerMask,
+                        // overrideMaterial = pass.msaaStencilMaterial,
+                        overrideShader = pass.msaaStencilShader
+                    }
+            );
+            builder.UseRendererList(pass.list);
 
             TextureHandle msaaStencil;
             TextureHandle msaaFill = default, msaaBlur = default, msaaDownscale = default;
@@ -88,7 +90,8 @@ namespace LynxRP
                 colorFormat = SystemInfo.GetGraphicsFormat(DefaultFormat.HDR),
                 name = "MSAA Stencil",
             };
-            msaaStencil = pass.msaaStencil = builder.WriteTexture(renderGraph.CreateTexture(desc));
+            msaaStencil = pass.msaaStencil = renderGraph.CreateTexture(desc);
+            builder.UseTexture(msaaStencil, AccessFlags.WriteAll); // also do pass.msaaStencil?
 
             desc.name = "MSAA Fill";
             msaaFill = renderGraph.CreateTexture(desc);

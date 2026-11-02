@@ -26,9 +26,9 @@ namespace LynxRP
 
         int stepCount;
 
-        void Render(RenderGraphContext context)
+        void Render(UnsafeGraphContext context)
         {
-            CommandBuffer buffer = context.cmd;
+            UnsafeCommandBuffer buffer = context.cmd;
             PostFXSettings.BloomSettings bloom = stack.Settings.Bloom;
 
             Vector4 threshold;
@@ -120,11 +120,12 @@ namespace LynxRP
                 return textures.colorAttachment;
             }
 
-            using RenderGraphBuilder builder = renderGraph.AddRenderPass(
+            using IUnsafeRenderGraphBuilder builder = renderGraph.AddUnsafePass(
                 sampler.name, out BloomPass pass, sampler
             );
             pass.stack = stack;
-            pass.colorSource = builder.ReadTexture(textures.colorAttachment);
+            pass.colorSource = textures.colorAttachment;
+            builder.UseTexture(pass.colorSource);
 
             var desc = new TextureDesc(size.x, size.y)
             {
@@ -159,9 +160,8 @@ namespace LynxRP
             desc.width = stack.BufferSize.x;
             desc.height = stack.BufferSize.y;
             desc.name = "Bloom Result";
-            pass.bloomResult = builder.WriteTexture(
-                renderGraph.CreateTexture(desc)
-            );
+            pass.bloomResult = renderGraph.CreateTexture(desc);
+            builder.UseTexture(pass.bloomResult, AccessFlags.WriteAll);
             builder.SetRenderFunc<BloomPass>(
                 static (pass, context) => pass.Render(context)
             );

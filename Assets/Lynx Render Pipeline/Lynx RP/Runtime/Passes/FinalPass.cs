@@ -12,12 +12,10 @@ namespace LynxRP
 
         TextureHandle colorAttachment;
 
-        void Render(RenderGraphContext context)
+        void Render(UnsafeGraphContext context)
         {
-            CommandBuffer buffer = context.cmd;
+            UnsafeCommandBuffer buffer = context.cmd;
             copier.CopyToCameraTarget(buffer, colorAttachment);
-            context.renderContext.ExecuteCommandBuffer(buffer);
-            buffer.Clear();
         }
 
         public static void Record(
@@ -26,10 +24,11 @@ namespace LynxRP
             in CameraRendererTextures textures
         )
         {
-            using RenderGraphBuilder builder =
-                renderGraph.AddRenderPass(sampler.name, out FinalPass pass, sampler);
+            using IUnsafeRenderGraphBuilder builder =
+                renderGraph.AddUnsafePass(sampler.name, out FinalPass pass, sampler);
             pass.copier = copier;
-            pass.colorAttachment = builder.ReadTexture(textures.colorAttachment);
+            pass.colorAttachment = textures.colorAttachment;
+            builder.UseTexture(pass.colorAttachment);
             builder.SetRenderFunc<FinalPass>(
                 static (pass, context) => pass.Render(context)
             );

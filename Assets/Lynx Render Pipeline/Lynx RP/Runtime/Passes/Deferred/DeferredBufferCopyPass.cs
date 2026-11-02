@@ -18,9 +18,9 @@ namespace LynxRP
 
         Material copyMaterial;
 
-        void Render(RenderGraphContext context)
+        void Render(UnsafeGraphContext context)
         {
-            CommandBuffer buffer = context.cmd;
+            UnsafeCommandBuffer buffer = context.cmd;
 
             buffer.SetGlobalTexture(copyDebugID, lightingBuffer);
             // buffer.SetGlobalTexture(copyDebugID, depthBuffer);
@@ -33,9 +33,6 @@ namespace LynxRP
             buffer.DrawProcedural(
                 Matrix4x4.identity, copyMaterial, 0, MeshTopology.Triangles, 3
             );
-
-            context.renderContext.ExecuteCommandBuffer(buffer);
-            buffer.Clear();
         }
 
         public static void Record(
@@ -45,15 +42,18 @@ namespace LynxRP
             Material copyMaterial
         )
         {
-            using RenderGraphBuilder builder =
-                renderGraph.AddRenderPass(sampler.name, out DeferredBufferCopyPass pass, sampler);
+            using IUnsafeRenderGraphBuilder builder =
+                renderGraph.AddUnsafePass(sampler.name, out DeferredBufferCopyPass pass, sampler);
 
             pass.copyMaterial = copyMaterial;
 
-            pass.colorAttachment = builder.WriteTexture(textures.colorAttachment);
-            pass.depthAttachment = builder.ReadTexture(textures.depthAttachment);
+            pass.colorAttachment = textures.colorAttachment;
+            pass.depthAttachment = textures.depthAttachment;
+            builder.UseTexture(pass.colorAttachment, AccessFlags.WriteAll);
+            builder.UseTexture(pass.depthAttachment);
 
-            pass.lightingBuffer = builder.ReadTexture(deferredTextures.lightingBuffer);
+            pass.lightingBuffer = deferredTextures.lightingBuffer;
+            builder.UseTexture(pass.lightingBuffer);
 
             builder.AllowPassCulling(false);
             builder.SetRenderFunc<DeferredBufferCopyPass>(

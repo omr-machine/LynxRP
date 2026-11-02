@@ -82,7 +82,7 @@ namespace LynxRP
 
         BufferHandle hiZDebugPointBuffer;
         
-        void DebugVertexBuffer(CommandBuffer commandBuffer, ComputeBuffer computeBuffer)
+        void DebugVertexBuffer(UnsafeCommandBuffer commandBuffer, ComputeBuffer computeBuffer)
         {
             NativeArray<Vertex> tempVertices = new NativeArray<Vertex>(indexCount, Allocator.Persistent);
             var vertices = tempVertices;
@@ -104,7 +104,7 @@ namespace LynxRP
             // tempVertices.Dispose();
         }
         
-        void DebugUintBuffer(CommandBuffer commandBuffer, ComputeBuffer computeBuffer)
+        void DebugUintBuffer(UnsafeCommandBuffer commandBuffer, ComputeBuffer computeBuffer)
         {
             NativeArray<uint> tempArray = new NativeArray<uint>(indexCount, Allocator.Persistent);
             var elements = tempArray;
@@ -121,7 +121,7 @@ namespace LynxRP
             });
         }
         
-        void DebugLineBuffer(CommandBuffer commandBuffer, ComputeBuffer computeBuffer)
+        void DebugLineBuffer(UnsafeCommandBuffer commandBuffer, ComputeBuffer computeBuffer)
         {
             NativeArray<Line> lineArray = new NativeArray<Line>(indexCount, Allocator.Persistent);
             var lines = lineArray;
@@ -143,7 +143,7 @@ namespace LynxRP
             });
         }
         
-        void DebugPointBuffer(CommandBuffer commandBuffer, ComputeBuffer computeBuffer)
+        void DebugPointBuffer(UnsafeCommandBuffer commandBuffer, ComputeBuffer computeBuffer)
         {
             NativeArray<Line> pointArray = new NativeArray<Line>(indexCount, Allocator.Persistent);
             var point = pointArray;
@@ -174,7 +174,7 @@ namespace LynxRP
 	        // Debug.Log(voteGroups + " " + scanGroups + " " + sumGroups);
         }
 
-        void InitPipelineState(ref CommandBuffer buffer)
+        void InitPipelineState(ref UnsafeCommandBuffer buffer)
         {
             int matricesCount = meshData.objCount;
             buffer.SetBufferData(
@@ -204,7 +204,7 @@ namespace LynxRP
             buffer.DispatchCompute(csTransformPositionShader, 1, indexCount2, 1, 1);
         }
 
-        void TriCulling(ref CommandBuffer buffer)
+        void TriCulling(ref UnsafeCommandBuffer buffer)
         {
             LynxRenderPipelineCamera lynxRenderPipelineCamera = camera.GetComponent<LynxRenderPipelineCamera>();
             bool skipTexture = (uint)lynxRenderPipelineCamera.Settings.cullSettings > 7;
@@ -239,7 +239,7 @@ namespace LynxRP
             buffer.DispatchCompute(csCullShader, 1, voteGroups, 1, 1);
         }
 
-        void PrepareIndirects(ref CommandBuffer buffer)
+        void PrepareIndirects(ref UnsafeCommandBuffer buffer)
         {
             buffer.SetComputeBufferParam(csCullShader, 2, triangleBufferId, triangleBuffer);
             buffer.SetComputeBufferParam(csCullShader, 2, vertexPassBufferId, vertexPassBuffer);
@@ -264,9 +264,9 @@ namespace LynxRP
                 buffer.SetGlobalTexture(hiZBufferId, hiZBuffer);
         }
         
-        void Render(RenderGraphContext context)
+        void Render(UnsafeGraphContext context)
         {
-            CommandBuffer buffer = context.cmd;
+            UnsafeCommandBuffer buffer = context.cmd;
 
             if (skipPass)
                 return;
@@ -314,9 +314,6 @@ namespace LynxRP
             // DebugUintBuffer(buffer, argsQuadBuffer);
             // DebugLineBuffer(buffer, bboxPassBuffer);
             // DebugPointBuffer(buffer, quadPassBuffer);
-
-            context.renderContext.ExecuteCommandBuffer(buffer);
-            buffer.Clear();
         }
 
         public static void Record(
@@ -335,7 +332,7 @@ namespace LynxRP
         {
             ProfilingSampler sampler = samplerCull;
 
-            using RenderGraphBuilder builder = renderGraph.AddRenderPass(
+            using IUnsafeRenderGraphBuilder builder = renderGraph.AddUnsafePass(
                 sampler.name, out CullPass pass, sampler
             );
 
@@ -371,17 +368,20 @@ namespace LynxRP
                 stride = 4,
                 target = GraphicsBuffer.Target.Structured
             };
-            pass.offsetSizesBuffer = builder.WriteBuffer(renderGraph.CreateBuffer(descN));
+            pass.offsetSizesBuffer = renderGraph.CreateBuffer(descN);
+            builder.UseBuffer(pass.offsetSizesBuffer, AccessFlags.WriteAll);
             
             descN.name = "Matrices Buffer";
             descN.count = meshData.objCount;
             descN.stride = (4 * 4) * 4;
-            pass.matricesBuffer = builder.WriteBuffer(renderGraph.CreateBuffer(descN));
+            pass.matricesBuffer = renderGraph.CreateBuffer(descN);
+            builder.UseBuffer(pass.matricesBuffer, AccessFlags.WriteAll);
 
             descN.name = "AABB Buffer";
             descN.count = meshData.objCount;
             descN.stride = 2 * (4 * 3) + 4;
-            pass.aabbBuffer = builder.WriteBuffer(renderGraph.CreateBuffer(descN));
+            pass.aabbBuffer = renderGraph.CreateBuffer(descN);
+            builder.UseBuffer(pass.aabbBuffer, AccessFlags.WriteAll);
             
             var descT = new BufferDesc
             {
@@ -390,54 +390,69 @@ namespace LynxRP
                 stride = (4 * 3 * 2) + (4 * 4) + (4 * 2),
                 target = GraphicsBuffer.Target.Structured
             };
-            pass.indexBuffer = builder.WriteBuffer(renderGraph.CreateBuffer(descT));
+            pass.indexBuffer = renderGraph.CreateBuffer(descT);
+            builder.UseBuffer(pass.indexBuffer, AccessFlags.WriteAll);
             
             descT.name = "Vertex Pass Buffer";
-            pass.vertexPassBuffer = builder.WriteBuffer(renderGraph.CreateBuffer(descT));
+            pass.vertexPassBuffer = renderGraph.CreateBuffer(descT);
+            builder.UseBuffer(pass.vertexPassBuffer, AccessFlags.WriteAll);
             
             descT.name = "Triangle Buffer"; 
             descT.count = pass.triCountPadded;
             descT.stride = 3 * ((4 * 3 * 2) + (4 * 4) + (4 * 2));
-            pass.triangleBuffer = builder.WriteBuffer(renderGraph.CreateBuffer(descT));
+            pass.triangleBuffer = renderGraph.CreateBuffer(descT);
+            builder.UseBuffer(pass.triangleBuffer, AccessFlags.WriteAll);
             
             descT.name = "Vote Buffer";
             descT.stride = 4;
-            pass.voteBuffer = builder.WriteBuffer(renderGraph.CreateBuffer(descT));
+            pass.voteBuffer = renderGraph.CreateBuffer(descT);
+            builder.UseBuffer(pass.voteBuffer, AccessFlags.WriteAll);
             
             descT.name = "BBox Buffer";
             descT.stride = 2 * (4 * 3) + 4;
-            pass.bboxBuffer = builder.WriteBuffer(renderGraph.CreateBuffer(descT));
+            pass.bboxBuffer = renderGraph.CreateBuffer(descT);
             descT.name = "BBox Pass Buffer";
             descT.stride = 2 * (4 * 3);
-            pass.bboxPassBuffer = builder.WriteBuffer(renderGraph.CreateBuffer(descT));
+            pass.bboxPassBuffer = renderGraph.CreateBuffer(descT);
+            builder.UseBuffer(pass.bboxBuffer, AccessFlags.WriteAll);
+            builder.UseBuffer(pass.bboxPassBuffer, AccessFlags.WriteAll);
             
             descT.name = "Quad Buffer";
             descT.count = pass.indexCount;
-            pass.quadBuffer = builder.WriteBuffer(renderGraph.CreateBuffer(descT));
+            pass.quadBuffer = renderGraph.CreateBuffer(descT);
             descT.name = "Quad Pass Buffer";
-            pass.quadPassBuffer = builder.WriteBuffer(renderGraph.CreateBuffer(descT));
+            pass.quadPassBuffer = renderGraph.CreateBuffer(descT);
+            builder.UseBuffer(pass.quadBuffer, AccessFlags.WriteAll);
+            builder.UseBuffer(pass.quadPassBuffer, AccessFlags.WriteAll);
             
             descT.name = "Scan Buffer";
             descT.count = pass.triCountPadded;
-            pass.scanBuffer = builder.WriteBuffer(renderGraph.CreateBuffer(descT));
+            pass.scanBuffer = renderGraph.CreateBuffer(descT);
             descT.name = "Scan Sum Buffer";
-            pass.scanSumBuffer = builder.WriteBuffer(renderGraph.CreateBuffer(descT));
+            pass.scanSumBuffer = renderGraph.CreateBuffer(descT);
             descT.name = "Group Sum Buffer";
             descT.count = pass.scanGroups;
-            pass.groupSumBuffer = builder.WriteBuffer(renderGraph.CreateBuffer(descT));
+            pass.groupSumBuffer = renderGraph.CreateBuffer(descT);
             descT.name = "Group Scan Buffer";
-            pass.groupScanBuffer = builder.WriteBuffer(renderGraph.CreateBuffer(descT));
+            pass.groupScanBuffer = renderGraph.CreateBuffer(descT);
+            builder.UseBuffer(pass.scanBuffer, AccessFlags.WriteAll);
+            builder.UseBuffer(pass.scanSumBuffer, AccessFlags.WriteAll);
+            builder.UseBuffer(pass.groupSumBuffer, AccessFlags.WriteAll);
+            builder.UseBuffer(pass.groupScanBuffer, AccessFlags.WriteAll);
 
             descT.name = "Args Buffer";
             descT.count = 1;
             descT.stride = 4 * 4;
             descT.target = GraphicsBuffer.Target.IndirectArguments;
-            pass.argsBuffer = builder.WriteBuffer(renderGraph.CreateBuffer(descT));
+            pass.argsBuffer = renderGraph.CreateBuffer(descT);
+            builder.UseBuffer(pass.argsBuffer, AccessFlags.WriteAll);
             
             descT.name = "Args Line Buffer";
-            pass.argsLineBuffer = builder.WriteBuffer(renderGraph.CreateBuffer(descT));
+            pass.argsLineBuffer = renderGraph.CreateBuffer(descT);
             descT.name = "Args Quad Buffer";
-            pass.argsQuadBuffer = builder.WriteBuffer(renderGraph.CreateBuffer(descT));
+            pass.argsQuadBuffer = renderGraph.CreateBuffer(descT);
+            builder.UseBuffer(pass.argsLineBuffer, AccessFlags.WriteAll);
+            builder.UseBuffer(pass.argsQuadBuffer, AccessFlags.WriteAll);
             
             var desc = new TextureDesc(attachmentSize.x, attachmentSize.y)
             {
@@ -446,7 +461,8 @@ namespace LynxRP
                 enableRandomWrite = true
             };
             desc.clearColor = Color.black;
-            pass.cullDebug = builder.WriteTexture(renderGraph.CreateTexture(desc));
+            pass.cullDebug = renderGraph.CreateTexture(desc);
+            builder.UseTexture(pass.cullDebug, AccessFlags.WriteAll);
 
             pass.camera = Camera.main;
             pass.resolution = attachmentSize;
@@ -454,12 +470,14 @@ namespace LynxRP
             pass.cullHiZ = (cameraSettings.cullSettings & CameraSettings.CullSettings.HiZ) != 0;
             if (pass.cullHiZ)
             {
-				pass.hiZBuffer = builder.ReadTexture(hiZData.hiZDepthRT);
-				pass.hiZDebugPointBuffer = builder.ReadBuffer(hiZData.pointBuffer);
+				pass.hiZBuffer = hiZData.hiZDepthRT;
+				pass.hiZDebugPointBuffer = hiZData.pointBuffer;
+                builder.UseTexture(pass.hiZBuffer);
+                builder.UseBuffer(pass.hiZDebugPointBuffer);
             }
             
-            builder.ReadWriteTexture(textures.colorAttachment);
-            builder.ReadWriteTexture(textures.depthAttachment);
+            builder.UseTexture(textures.colorAttachment, AccessFlags.ReadWrite);
+            builder.UseTexture(textures.depthAttachment, AccessFlags.ReadWrite);
 
             builder.SetRenderFunc<CullPass>(
                 static (pass, context) => pass.Render(context)

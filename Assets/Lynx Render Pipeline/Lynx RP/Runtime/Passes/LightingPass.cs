@@ -39,7 +39,7 @@ namespace LynxRP
 
         int directionalLightCount, otherLightCount;
 
-        NativeArray<int> tileData;
+        static NativeArray<int> tileData;
 
         NativeArray<float4> lightBounds;
         
@@ -147,9 +147,17 @@ namespace LynxRP
                 }
             }
 
-            tileData = new NativeArray<int>(
-                TileCount * tileDataSize, Allocator.TempJob
-            );
+            int tileDataLength = TileCount * tileDataSize;
+            if (!tileData.IsCreated || tileData.Length != tileDataLength)
+            {
+                if (tileData.IsCreated)
+                {
+                    tileData.Dispose();
+                }
+                tileData = new(
+                    tileDataLength, Allocator.Persistent, NativeArrayOptions.UninitializedMemory
+                );
+            }
             forwardPlusJobHandle = new ForwardPlusTilesJob
             {
                 lightBounds = lightBounds,
@@ -166,9 +174,11 @@ namespace LynxRP
             
         }
 
-        void Render(RenderGraphContext context)
+        public static void Cleanup() => tileData.Dispose();
+
+        void Render(UnsafeGraphContext context)
         {
-            CommandBuffer buffer = context.cmd;
+            UnsafeCommandBuffer buffer = context.cmd;
 
             buffer.SetGlobalInt(directionalLightCountId, directionalLightCount);
             // if (directionalLightCount > 0) { }
@@ -186,7 +196,7 @@ namespace LynxRP
             );
             buffer.SetGlobalBuffer(otherLightDataId, otherLightDataBuffer);
 
-            shadows.Render(context);
+            shadows.Render(context.cmd);
 
             forwardPlusJobHandle.Complete();
             buffer.SetBufferData(
@@ -198,10 +208,8 @@ namespace LynxRP
                 tileCount.x.ReinterpretAsFloat(),
                 tileDataSize.ReinterpretAsFloat()
             ));
-            context.renderContext.ExecuteCommandBuffer(buffer);
-            buffer.Clear();
             lightBounds.Dispose();
-            tileData.Dispose();
+            // tileData.Dispose(); // Keep so not to dispose before copying
         }
 
         public static LightResources Record
@@ -215,7 +223,7 @@ namespace LynxRP
             ScriptableRenderContext context
         )
         {
-            using RenderGraphBuilder builder = renderGraph.AddRenderPass(
+            using IUnsafeRenderGraphBuilder builder = renderGraph.AddUnsafePass(
                 sampler.name, out LightingPass pass, sampler
             );
             pass.Setup(
@@ -223,40 +231,37 @@ namespace LynxRP
                 forwardPlusSettings,shadowSettings,
                 renderingLayerMask
             );
-            pass.directionalLightDataBuffer = builder.WriteBuffer(
-                renderGraph.CreateBuffer(
-                    new BufferDesc
-                    {
-                        name = "Directional Light Data",
-                        count = maxDirectionalLightCount,
-                        stride = DirectionalLightData.stride,
-                        target = GraphicsBuffer.Target.Structured
-                    }
-                )
+            pass.directionalLightDataBuffer = renderGraph.CreateBuffer(
+                new BufferDesc
+                {
+                    name = "Directional Light Data",
+                    count = maxDirectionalLightCount,
+                    stride = DirectionalLightData.stride,
+                    target = GraphicsBuffer.Target.Structured
+                }
             );
-            pass.otherLightDataBuffer = builder.WriteBuffer(
-                renderGraph.CreateBuffer(
-                    new BufferDesc
-                    {
-                        name = "Other Light Data",
-                        count = maxOtherLightCount,
-                        stride = OtherLightData.stride,
-                        target = GraphicsBuffer.Target.Structured
-                    }
-                )
+            builder.UseBuffer(pass.directionalLightDataBuffer, AccessFlags.WriteAll);
+
+            pass.otherLightDataBuffer = renderGraph.CreateBuffer(
+                new BufferDesc
+                {
+                    name = "Other Light Data",
+                    count = maxOtherLightCount,
+                    stride = OtherLightData.stride,
+                    target = GraphicsBuffer.Target.Structured
+                }
             );
-            pass.tilesBuffer = builder.WriteBuffer(
-                renderGraph.CreateBuffer(
-                    new BufferDesc
-                    {
-                        name = "Forward+ Tiles",
-                        count = pass.TileCount * pass.maxTileDataSize,
-                        stride = 4,
-                        target = GraphicsBuffer.Target.Structured
-                    }
-                )
+            builder.UseBuffer(pass.otherLightDataBuffer, AccessFlags.WriteAll);
+            pass.tilesBuffer = renderGraph.CreateBuffer(
+                new BufferDesc
+                {
+                    name = "Forward+ Tiles",
+                    count = pass.TileCount * pass.maxTileDataSize,
+                    stride = 4,
+                    target = GraphicsBuffer.Target.Structured
+                }
             );
-            
+            builder.UseBuffer(pass.tilesBuffer, AccessFlags.WriteAll);            
             builder.SetRenderFunc<LightingPass>(
                 static (pass, context) => pass.Render(context)
             );

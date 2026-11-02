@@ -70,12 +70,9 @@ namespace LynxRP
             // Debug.Log(voteGroups + " " + scanGroups + " " + sumGroups);
         }
         
-        void Render(RenderGraphContext context)
+        void Render(UnsafeGraphContext context)
         {
-            CommandBuffer buffer = context.cmd;
-
-            context.renderContext.ExecuteCommandBuffer(buffer);
-            buffer.Clear();
+            UnsafeCommandBuffer buffer = context.cmd;
         }
 
         public static GPUDrivenData Record(
@@ -87,7 +84,7 @@ namespace LynxRP
         {
             ProfilingSampler sampler = samplerCull;
 
-            using RenderGraphBuilder builder = renderGraph.AddRenderPass(
+            using IUnsafeRenderGraphBuilder builder = renderGraph.AddUnsafePass(
                 sampler.name, out SetupGPUDrivenPass pass, sampler
             );
 
@@ -171,8 +168,8 @@ namespace LynxRP
             descT.name = "Args Quad Buffer";
             pass.argsQuadBuffer = renderGraph.CreateBuffer(descT);
             
-            builder.ReadWriteTexture(textures.colorAttachment);
-            builder.ReadWriteTexture(textures.depthAttachment);
+            builder.UseTexture(textures.colorAttachment, AccessFlags.ReadWrite);
+            builder.UseTexture(textures.depthAttachment, AccessFlags.ReadWrite);
 
             builder.SetRenderFunc<SetupGPUDrivenPass>(
                 static (pass, context) => pass.Render(context)

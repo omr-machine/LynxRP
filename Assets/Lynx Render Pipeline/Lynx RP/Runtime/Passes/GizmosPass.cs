@@ -13,21 +13,18 @@ namespace LynxRP
             
             CameraRendererCopier copier;
             
-            TextureHandle depthAttachment;
+            TextureHandle depthAttachment, cameraTarget;
 
-                void Render(RenderGraphContext context)
+            RendererListHandle preList, postList;
+
+                void Render(UnsafeGraphContext context)
                 {
-                    CommandBuffer buffer = context.cmd;
-                    ScriptableRenderContext renderContext = context.renderContext;
+                    UnsafeCommandBuffer buffer = context.cmd;
 
-                    copier.CopyByDrawing(
-                        buffer, depthAttachment, BuiltinRenderTextureType.CameraTarget, true
-                    );
-                    renderContext.ExecuteCommandBuffer(buffer);
-                    buffer.Clear();
+                    copier.Copy(buffer, depthAttachment, cameraTarget, true);
                     
-                    renderContext.DrawGizmos(copier.Camera, GizmoSubset.PreImageEffects);
-                    renderContext.DrawGizmos(copier.Camera, GizmoSubset.PostImageEffects);
+                    buffer.DrawRendererList(preList);
+                    buffer.DrawRendererList(postList);
                 }
         #endif
 
@@ -41,12 +38,24 @@ namespace LynxRP
             #if UNITY_EDITOR
                 if (Handles.ShouldRenderGizmos()) 
                 {
-                    using RenderGraphBuilder builder = 
-                        renderGraph.AddRenderPass(sampler.name, out GizmosPass pass, sampler);
+                    using IUnsafeRenderGraphBuilder builder = 
+                        renderGraph.AddUnsafePass(sampler.name, out GizmosPass pass, sampler);
                     pass.copier = copier;
 
-                    pass.depthAttachment = builder.ReadTexture(textures.depthAttachment);
-                    
+                    pass.depthAttachment = textures.depthAttachment;
+                    builder.UseTexture(pass.depthAttachment);
+
+                    pass.preList = 
+                        renderGraph.CreateGizmoRendererList(copier.Camera, GizmoSubset.PreImageEffects);
+                    builder.UseRendererList(pass.preList);
+                    pass.postList =
+                        renderGraph.CreateGizmoRendererList(copier.Camera, GizmoSubset.PostImageEffects);
+                    builder.UseRendererList(pass.postList);
+                    pass.cameraTarget =
+                        renderGraph.ImportBackbuffer(BuiltinRenderTextureType.CameraTarget);
+                    builder.UseTexture(pass.cameraTarget, AccessFlags.WriteAll);
+
+                    builder.AllowPassCulling(false);
                     builder.SetRenderFunc<GizmosPass>(
                         static (pass, context) => pass.Render(context)
                     );

@@ -142,9 +142,9 @@ namespace LynxRP
         }
 
         [Conditional("DEVELOPMENT_BUILD"), Conditional("UNITY_EDITOR")]
-        public static void Render(RenderGraphContext context)
+        public static void Render(UnsafeGraphContext context)
         {
-            CommandBuffer buffer = context.cmd;
+            UnsafeCommandBuffer buffer = context.cmd;
             int shaderPass = 0;
             buffer.SetGlobalFloat(opacityID, opacity);
             if (showDepth)
@@ -185,8 +185,6 @@ namespace LynxRP
             buffer.DrawProcedural(
                 Matrix4x4.identity, material, shaderPass, MeshTopology.Triangles, 3
             );
-            context.renderContext.ExecuteCommandBuffer(buffer);
-            buffer.Clear();
         }
     }
 }

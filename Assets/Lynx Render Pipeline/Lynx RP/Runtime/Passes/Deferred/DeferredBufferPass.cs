@@ -14,8 +14,8 @@ namespace LynxRP
 
         static ShaderTagId[] shaderTagId =
         {
-            new ShaderTagId("CustomLitDeferred"),
-            new ShaderTagId("CustomUnlitDeferred")
+            new("CustomLitDeferred"),
+            new("CustomUnlitDeferred")
         };
 
         RendererListHandle list;
@@ -29,9 +29,9 @@ namespace LynxRP
 
         RenderTargetIdentifier[] bufferColorIDs = new RenderTargetIdentifier[7];
 
-        void Render(RenderGraphContext context)
+        void Render(UnsafeGraphContext context)
         {
-            CommandBuffer buffer = context.cmd;
+            UnsafeCommandBuffer buffer = context.cmd;
 
             bufferColorIDs[0] = albedoBuffer;
             bufferColorIDs[1] = positionBuffer;
@@ -46,9 +46,6 @@ namespace LynxRP
             );
 
             buffer.DrawRendererList(list);
-
-            context.renderContext.ExecuteCommandBuffer(buffer);
-            buffer.Clear();
         }
 
         public static void Record(
@@ -61,10 +58,10 @@ namespace LynxRP
             in LightResources lightData
         )
         {
-            using RenderGraphBuilder builder =
-                renderGraph.AddRenderPass(sampler.name, out DeferredBufferPass pass, sampler);
+            using IUnsafeRenderGraphBuilder builder =
+                renderGraph.AddUnsafePass(sampler.name, out DeferredBufferPass pass, sampler);
 
-            pass.list = builder.UseRendererList(renderGraph.CreateRendererList(
+            pass.list = renderGraph.CreateRendererList(
                 new RendererListDesc(shaderTagId, cullingResults, camera)
                 {
                     sortingCriteria = SortingCriteria.CommonOpaque,
@@ -80,33 +77,42 @@ namespace LynxRP
                     renderQueueRange = RenderQueueRange.opaque,
                     renderingLayerMask = (uint)renderingLayerMask
                 }
-            ));
+            );
+            builder.UseRendererList(pass.list);
 
-            pass.positionBuffer = builder.WriteTexture(deferredTextures.positionBuffer);
-            pass.normalBuffer = builder.WriteTexture(deferredTextures.normalBuffer);
-            pass.normalInterpolatedBuffer = builder.WriteTexture(deferredTextures.normalInterpolatedBuffer);
-            pass.ormBuffer = builder.WriteTexture(deferredTextures.ormBuffer);
-            pass.extrasBuffer = builder.WriteTexture(deferredTextures.extrasBuffer);
-            pass.lightingBuffer = builder.WriteTexture(deferredTextures.lightingBuffer);
+            pass.positionBuffer = deferredTextures.positionBuffer;
+            pass.normalBuffer = deferredTextures.normalBuffer;
+            pass.normalInterpolatedBuffer = deferredTextures.normalInterpolatedBuffer;
+            pass.ormBuffer = deferredTextures.ormBuffer;
+            pass.extrasBuffer = deferredTextures.extrasBuffer;
+            pass.lightingBuffer = deferredTextures.lightingBuffer ;
+            builder.UseTexture(pass.positionBuffer, AccessFlags.WriteAll);
+            builder.UseTexture(pass.normalBuffer, AccessFlags.WriteAll);
+            builder.UseTexture(pass.normalInterpolatedBuffer, AccessFlags.WriteAll);
+            builder.UseTexture(pass.ormBuffer, AccessFlags.WriteAll);
+            builder.UseTexture(pass.extrasBuffer, AccessFlags.WriteAll);
+            builder.UseTexture(pass.lightingBuffer, AccessFlags.WriteAll);
             
-            pass.albedoBuffer = builder.WriteTexture(textures.colorAttachment);
-            pass.depthBuffer = builder.WriteTexture(textures.depthAttachment);
+            pass.albedoBuffer = textures.colorAttachment;
+            pass.depthBuffer = textures.depthAttachment;
+            builder.UseTexture(pass.albedoBuffer, AccessFlags.WriteAll);
+            builder.UseTexture(pass.depthBuffer, AccessFlags.WriteAll);
 
-            builder.ReadBuffer(lightData.directionalLightDataBuffer);
-            builder.ReadBuffer(lightData.otherLightDataBuffer);
+            builder.UseBuffer(lightData.directionalLightDataBuffer);
+            builder.UseBuffer(lightData.otherLightDataBuffer);
             // if (lightData.tilesBuffer.IsValid())
             {
-                builder.ReadBuffer(lightData.tilesBuffer);
+                builder.UseBuffer(lightData.tilesBuffer);
             }
-            builder.ReadTexture(lightData.shadowResources.directionalAtlas);
-            builder.ReadTexture(lightData.shadowResources.otherAtlas);
-            builder.ReadBuffer(
+            builder.UseTexture(lightData.shadowResources.directionalAtlas);
+            builder.UseTexture(lightData.shadowResources.otherAtlas);
+            builder.UseBuffer(
                 lightData.shadowResources.directionalShadowCascadesBuffer
             );
-            builder.ReadBuffer(
+            builder.UseBuffer(
                 lightData.shadowResources.directionalShadowMatricesBuffer
             );
-            builder.ReadBuffer(
+            builder.UseBuffer(
                 lightData.shadowResources.otherShadowDataBuffer
             );
 

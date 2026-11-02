@@ -25,8 +25,10 @@ namespace LynxRP
         private bool debug;
         Vector2Int attachmentSize;
         RenderTexture debugHiZRT;
+        TextureHandle debugHiZRTH;
+        RTHandle debugHiZRTHandle;
 
-        void CopyDepth(ref CommandBuffer buffer, ref RenderTargetIdentifier target, bool clearTarget)
+        void CopyDepth(ref UnsafeCommandBuffer buffer, ref RenderTargetIdentifier target, bool clearTarget)
         {
             buffer.SetRenderTarget(target, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store);
             if (clearTarget)
@@ -37,7 +39,7 @@ namespace LynxRP
             );
         }
 
-        void CopyToRenderTexture(ref CommandBuffer buffer, ref RenderTexture renderTexture)
+        void CopyToRenderTexture(ref UnsafeCommandBuffer buffer, ref RenderTexture renderTexture)
         {
             renderTexture.Release();
             renderTexture.width = attachmentSize.x; renderTexture.height = attachmentSize.y;
@@ -46,9 +48,9 @@ namespace LynxRP
             CopyDepth(ref buffer, ref target, true);
         }
 
-        void Render(RenderGraphContext context)
+        void Render(UnsafeGraphContext context)
         {
-            CommandBuffer buffer = context.cmd;
+            UnsafeCommandBuffer buffer = context.cmd;
             RenderTargetIdentifier hiZBufferRTI = new RenderTargetIdentifier(hiZInterFrameRT);
             
             if (!debug)
@@ -59,7 +61,7 @@ namespace LynxRP
             }
             else
             {
-                buffer.SetGlobalTexture(sourceID, debugHiZRT);
+                buffer.SetGlobalTexture(sourceID, debugHiZRTH);
                 CopyDepth(ref buffer, ref hiZBufferRTI, false);
             }
 
@@ -73,9 +75,6 @@ namespace LynxRP
                 colorAttachment, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store,
                 depthAttachment, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store
             );
-
-            context.renderContext.ExecuteCommandBuffer(buffer);
-            buffer.Clear();
         }
 
         public static void Record(
@@ -91,8 +90,8 @@ namespace LynxRP
             
         )
         {
-            using RenderGraphBuilder builder =
-                renderGraph.AddRenderPass(sampler.name, out HiZCopyPass pass, sampler);
+            using IUnsafeRenderGraphBuilder builder =
+                renderGraph.AddUnsafePass(sampler.name, out HiZCopyPass pass, sampler);
             
             pass.debugHiZRT = debugHiZRT;
             pass.attachmentSize = attachmentSize;
@@ -104,12 +103,32 @@ namespace LynxRP
             
             pass.csHiZShader = csHiZShader;
             
-            pass.hiZInterFrameRT = builder.WriteTexture(hiZData.hiZInterFrameRT);
-            pass.hiZCurrFrameDataRT = builder.WriteTexture(hiZData.hiZPrevFrameDataRT);
+            pass.hiZInterFrameRT = hiZData.hiZInterFrameRT;
+            pass.hiZCurrFrameDataRT = hiZData.hiZPrevFrameDataRT;
             
-            pass.depthAttachment = builder.ReadTexture(textures.depthAttachment);
-            pass.colorAttachment = builder.ReadTexture(textures.colorAttachment);
+            pass.depthAttachment = textures.depthAttachment;
+            pass.colorAttachment = textures.colorAttachment;
 
+            builder.UseTexture(pass.hiZInterFrameRT, AccessFlags.WriteAll);
+            builder.UseTexture(pass.hiZCurrFrameDataRT, AccessFlags.WriteAll);
+
+            RenderTargetInfo rtInfo = new RenderTargetInfo
+            {
+                width = debugHiZRT.width,
+                height = debugHiZRT.height,
+                volumeDepth = debugHiZRT.volumeDepth,
+                msaaSamples = debugHiZRT.antiAliasing,
+                format = debugHiZRT.graphicsFormat
+            };
+
+            pass.debugHiZRTHandle ??= RTHandles.Alloc(debugHiZRT);
+            pass.debugHiZRTH = renderGraph.ImportTexture(pass.debugHiZRTHandle, rtInfo);
+
+            builder.UseTexture(pass.debugHiZRTH, AccessFlags.WriteAll);
+            
+            builder.UseTexture(pass.depthAttachment);
+            builder.UseTexture(pass.colorAttachment);
+            
             builder.AllowPassCulling(false);
             builder.SetRenderFunc<HiZCopyPass>(
                 static (pass, context) => pass.Render(context)

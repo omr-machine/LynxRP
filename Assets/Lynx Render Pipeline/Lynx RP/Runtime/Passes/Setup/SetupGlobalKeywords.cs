@@ -72,7 +72,7 @@ namespace LynxRP
             }
         }
 
-        void SetTargetKeywords(CommandBuffer buffer, Vector2Int attachmentSize)
+        void SetTargetKeywords(UnsafeCommandBuffer buffer, Vector2Int attachmentSize)
         {
             buffer.SetGlobalVector(attachmentSizeID, new Vector4(
                 1f / attachmentSize.x, 1f / attachmentSize.y,
@@ -84,14 +84,14 @@ namespace LynxRP
             ));
         }
 
-        void SetCameraKeywords(CommandBuffer buffer, Camera camera)
+        void SetCameraKeywords(UnsafeCommandBuffer buffer, Camera camera)
         {
             buffer.SetGlobalVector(cameraPositionId, camera.transform.position);
             buffer.SetGlobalFloat(nearPlaneId, camera.nearClipPlane);
             buffer.SetGlobalFloat(farPlaneId, camera.farClipPlane);
         }
 
-        void SetCameraMatrixKeywords(CommandBuffer buffer, Camera camera) 
+        void SetCameraMatrixKeywords(UnsafeCommandBuffer buffer, Camera camera) 
         {
             matrices.matM    = camera.transform.localToWorldMatrix;
             matrices.matV    = camera.transform.worldToLocalMatrix;
@@ -109,7 +109,7 @@ namespace LynxRP
             buffer.SetGlobalMatrix(matrixVPInvId, matrices.matGLVP.inverse);
         }
 
-        void SetFrustumKeywords(CommandBuffer buffer, Camera camera)
+        void SetFrustumKeywords(UnsafeCommandBuffer buffer, Camera camera)
         {
             Vector4[] frustumCornersVS = new Vector4[8];
             Vector4[] frustumPlanes = new Vector4[6];
@@ -128,7 +128,7 @@ namespace LynxRP
             buffer.SetGlobalVectorArray(frustumPlanesWSId, frustumPlanes);
         }
 
-        public void SetCullKeywords(CommandBuffer buffer, Vector2Int attachmentSize, int cullSettings)
+        public void SetCullKeywords(UnsafeCommandBuffer buffer, Vector2Int attachmentSize, int cullSettings)
         {
             Vector4 screenParams = new Vector4(
                 attachmentSize.x, attachmentSize.y,
@@ -146,7 +146,7 @@ namespace LynxRP
             buffer.SetGlobalInt(cullHiZId, triCullHiZ);
         }
 
-        void SetKeywords(CommandBuffer buffer, Camera camera, Vector2Int attachmentSize, int cullSettings)
+        void SetKeywords(UnsafeCommandBuffer buffer, Camera camera, Vector2Int attachmentSize, int cullSettings)
         {
             SetTargetKeywords(buffer, attachmentSize);
             SetCameraKeywords(buffer, camera);

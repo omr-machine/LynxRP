@@ -2,6 +2,7 @@
 
 using UnityEngine;
 using UnityEngine.Rendering;
+using UnityEngine.Rendering.RenderGraphModule;
 
 namespace LynxRP
 {
@@ -12,11 +13,6 @@ namespace LynxRP
         dstBlendID = Shader.PropertyToID("_CameraDstBlend");
 
         static readonly Rect fullViewRect = new Rect(0f, 0f, 1f, 1f);
-
-        static readonly bool copyTextureSupported =
-            SystemInfo.copyTextureSupport > CopyTextureSupport.None;
-
-        public static bool RequiresRenderTargetResetAfterCopy => !copyTextureSupported;
 
         public readonly Camera Camera => camera;
 
@@ -36,30 +32,15 @@ namespace LynxRP
         }
 
         public readonly void Copy(
-            CommandBuffer buffer,
-            RenderTargetIdentifier from,
-            RenderTargetIdentifier to,
+            UnsafeCommandBuffer buffer,
+            TextureHandle from,
+            TextureHandle to,
             bool isDepth
         )
         {
-            if (copyTextureSupported)
-            {
-                buffer.CopyTexture(from, to);
-            }
-            else
-            {
-                CopyByDrawing(buffer, from, to, isDepth);
-            }
-            // CopyByDrawing(buffer, from, to, isDepth);
-        }
-
-        public readonly void CopyByDrawing(
-            CommandBuffer buffer,
-            RenderTargetIdentifier from,
-            RenderTargetIdentifier to,
-            bool isDepth
-        )
-        {
+            buffer.SetGlobalFloat(srcBlendID, 1f);
+            buffer.SetGlobalFloat(dstBlendID, 0f);
+            
             buffer.SetGlobalTexture(sourceTextureID, from);
             buffer.SetRenderTarget(
                 to, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store
@@ -72,8 +53,8 @@ namespace LynxRP
         }
 
         public readonly void CopyToCameraTarget(
-            CommandBuffer buffer,
-            RenderTargetIdentifier from
+            UnsafeCommandBuffer buffer,
+            TextureHandle from
         )
         {
             buffer.SetGlobalFloat(srcBlendID, (float)finalBlendMode.source);

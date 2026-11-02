@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.Rendering;
+using UnityEngine.Rendering.RenderGraphModule;
 
 namespace LynxRP
 {
@@ -44,7 +45,7 @@ namespace LynxRP
         
         public PostFXSettings Settings { get; set; }
 
-        public void Draw(CommandBuffer buffer, RenderTargetIdentifier to, Pass pass)
+        public void Draw(UnsafeCommandBuffer buffer, TextureHandle to, Pass pass)
         {
             buffer.SetRenderTarget(
                 to, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store
@@ -56,9 +57,9 @@ namespace LynxRP
         }
 
         public void Draw(
-            CommandBuffer buffer,
-            RenderTargetIdentifier from, 
-            RenderTargetIdentifier to, 
+            UnsafeCommandBuffer buffer,
+            TextureHandle from, 
+            TextureHandle to, 
             Pass pass
         )
         {
@@ -73,8 +74,8 @@ namespace LynxRP
         }
 
         public void DrawFinal(
-            CommandBuffer buffer,
-            RenderTargetIdentifier from, 
+            UnsafeCommandBuffer buffer,
+            TextureHandle from, 
             Pass pass
         )
         {

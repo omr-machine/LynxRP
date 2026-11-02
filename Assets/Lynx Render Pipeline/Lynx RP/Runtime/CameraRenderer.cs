@@ -25,6 +25,7 @@ namespace LynxRP
         {
             CoreUtils.Destroy(material);
             CameraDebugger.Cleanup();
+            LightingPass.Cleanup();
         }
 
         public void Render(
@@ -48,23 +49,9 @@ namespace LynxRP
             }
             else
             {
-                cameraSampler = ProfilingSampler.Get(camera.cameraType);
+                cameraSampler = GetDefaultProfileSampler(camera);
                 cameraSettings = defaultCameraSettings;
             }
-
-            #if UNITY_EDITOR
-            #pragma warning disable 0618
-                if (cameraSettings.renderingLayerMask != 0)
-                {
-                    // Migrate camera settings to new rendering layer mask.
-                    cameraSettings.newRenderingLayerMask = (uint)cameraSettings.renderingLayerMask;
-                    cameraSettings.renderingLayerMask = 0;
-                    UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(
-                        UnityEditor.SceneManagement.EditorSceneManager.GetActiveScene()
-                    );
-                }
-            #pragma warning restore 0618
-            #endif
 
             bool useColorTexture, useDepthTexture;
             if (camera.cameraType == CameraType.Reflection)
@@ -497,7 +484,7 @@ namespace LynxRP
             LightResources lightResources
         )
         {
-            UnsupportedShadersPass.Record(renderGraph, camera, cullingResults);
+            UnsupportedShadersPass.Record(renderGraph, camera, cullingResults, textures);
 
             if (hasActivePostFX)
             {
@@ -520,6 +507,18 @@ namespace LynxRP
 
             GizmosPass.Record(renderGraph, copier, textures);
         }
+
+        #if (UNITY_EDITOR || DEVELOPMENT_BUILD)
+                static ProfilingSampler GetDefaultProfileSampler(Camera camera) =>
+                    ProfilingSampler.Get(camera.cameraType);
+        #else
+            static ProfilingSampler defaultReleaseBuildProfilingSampler =
+                new("Other Camera");
+
+            static ProfilingSampler GetDefaultProfileSampler(Camera camera) =>
+                defaultReleaseBuildProfilingSampler;
+        #endif
+        
     }
 }
 

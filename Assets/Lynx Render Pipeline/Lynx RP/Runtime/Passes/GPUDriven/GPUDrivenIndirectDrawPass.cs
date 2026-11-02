@@ -146,9 +146,9 @@ namespace LynxRP
             });
         }
 
-        void Render(RenderGraphContext context)
+        void Render(UnsafeGraphContext context)
         {
-            CommandBuffer buffer = context.cmd;
+            UnsafeCommandBuffer buffer = context.cmd;
 
             if (skipPass)
                 return;
@@ -204,9 +204,6 @@ namespace LynxRP
             // DebugUintBuffer(buffer, argsQuadBuffer);
             // DebugLineBuffer(buffer, bboxPassBuffer);
             // DebugPointBuffer(buffer, quadPassBuffer);
-
-            context.renderContext.ExecuteCommandBuffer(buffer);
-            buffer.Clear();
         }
 
         public static void Record(
@@ -222,7 +219,7 @@ namespace LynxRP
         {
             ProfilingSampler sampler = samplerCull;
 
-            using RenderGraphBuilder builder = renderGraph.AddRenderPass(
+            using IUnsafeRenderGraphBuilder builder = renderGraph.AddUnsafePass(
                 sampler.name, out GPUDrivenIndirectDrawPass pass, sampler
             );
 
@@ -247,31 +244,43 @@ namespace LynxRP
 
             pass.csCullShader = csCullShader;
 
-            pass.indexBuffer = builder.ReadBuffer(gpuDrivenData.indexBuffer);
-            pass.voteBuffer = builder.ReadBuffer(gpuDrivenData.voteBuffer);
+            pass.indexBuffer = gpuDrivenData.indexBuffer;
+            pass.voteBuffer = gpuDrivenData.voteBuffer;
+            builder.UseBuffer(pass.indexBuffer);
+            builder.UseBuffer(pass.voteBuffer);
 
-            pass.triangleBuffer = builder.ReadBuffer(gpuDrivenData.triangleBuffer);
-            pass.bboxBuffer = builder.ReadBuffer(gpuDrivenData.bboxBuffer);
-            pass.quadBuffer = builder.ReadBuffer(gpuDrivenData.quadBuffer);
+            pass.triangleBuffer = gpuDrivenData.triangleBuffer;
+            pass.bboxBuffer = gpuDrivenData.bboxBuffer;
+            pass.quadBuffer = gpuDrivenData.quadBuffer;
+            builder.UseBuffer(pass.triangleBuffer);
+            builder.UseBuffer(pass.bboxBuffer);
+            builder.UseBuffer(pass.quadBuffer);
 
-            pass.vertexPassBuffer = builder.WriteBuffer(gpuDrivenData.vertexPassBuffer);
-            pass.bboxPassBuffer = builder.WriteBuffer(gpuDrivenData.bboxPassBuffer);
-            pass.quadPassBuffer = builder.WriteBuffer(gpuDrivenData.quadPassBuffer);
+            pass.vertexPassBuffer = gpuDrivenData.vertexPassBuffer;
+            pass.bboxPassBuffer = gpuDrivenData.bboxPassBuffer;
+            pass.quadPassBuffer = gpuDrivenData.quadPassBuffer;
+            builder.UseBuffer(pass.vertexPassBuffer, AccessFlags.WriteAll);
+            builder.UseBuffer(pass.bboxPassBuffer, AccessFlags.WriteAll);
+            builder.UseBuffer(pass.quadPassBuffer, AccessFlags.WriteAll);
 
-            pass.argsBuffer = builder.WriteBuffer(gpuDrivenData.argsBuffer);
-            pass.argsLineBuffer = builder.WriteBuffer(gpuDrivenData.argsLineBuffer);
-            pass.argsQuadBuffer = builder.WriteBuffer(gpuDrivenData.argsQuadBuffer);
+            pass.argsBuffer = gpuDrivenData.argsBuffer;
+            pass.argsLineBuffer = gpuDrivenData.argsLineBuffer;
+            pass.argsQuadBuffer = gpuDrivenData.argsQuadBuffer;
+            builder.UseBuffer(pass.argsBuffer, AccessFlags.WriteAll);
+            builder.UseBuffer(pass.argsLineBuffer, AccessFlags.WriteAll);
+            builder.UseBuffer(pass.argsQuadBuffer, AccessFlags.WriteAll);
 
             pass.camera = Camera.main;
 
             pass.cullHiZ = (cameraSettings.cullSettings & CameraSettings.CullSettings.HiZ) != 0;
             if (pass.cullHiZ)
             {
-                pass.hiZDebugPointBuffer = builder.ReadBuffer(hiZData.pointBuffer);
+                pass.hiZDebugPointBuffer = hiZData.pointBuffer;
+                builder.UseBuffer(pass.hiZDebugPointBuffer);
             }
 
-            builder.ReadWriteTexture(textures.colorAttachment);
-            builder.ReadWriteTexture(textures.depthAttachment);
+            builder.UseTexture(textures.colorAttachment, AccessFlags.ReadWrite);
+            builder.UseTexture(textures.depthAttachment, AccessFlags.ReadWrite);
 
             builder.SetRenderFunc<GPUDrivenIndirectDrawPass>(
                 static (pass, context) => pass.Render(context)
