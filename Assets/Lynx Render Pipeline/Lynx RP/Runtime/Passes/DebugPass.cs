@@ -22,13 +22,16 @@ namespace LynxRP
                 camera.cameraType <= CameraType.SceneView
             )
             {
-                using RenderGraphBuilder builder = renderGraph.AddRenderPass(
+                using IUnsafeRenderGraphBuilder builder = renderGraph.AddUnsafePass(
                     sampler.name, out DebugPass pass, sampler
                 );
-                builder.ReadBuffer(lightData.tilesBuffer);
+                builder.UseBuffer(lightData.tilesBuffer);
 
-                CameraDebugger.colorBuffer = builder.ReadTexture(textures.colorAttachment);
-                CameraDebugger.depthBuffer = builder.ReadTexture(textures.depthAttachment);
+                CameraDebugger.depthBuffer = textures.depthAttachment;
+                CameraDebugger.colorBuffer = textures.colorAttachment;
+                
+                builder.UseTexture(CameraDebugger.depthBuffer);
+                builder.UseTexture(CameraDebugger.colorBuffer);
                 
                 builder.SetRenderFunc<DebugPass>(
                     static (pass, context) => CameraDebugger.Render(context)

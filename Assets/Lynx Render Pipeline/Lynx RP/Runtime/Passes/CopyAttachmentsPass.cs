@@ -18,9 +18,9 @@ namespace LynxRP
 
         TextureHandle colorAttachment, depthAttachment, colorCopy, depthCopy;
 
-        void Render(RenderGraphContext context) 
+        void Render(UnsafeGraphContext context) 
         {
-            CommandBuffer buffer = context.cmd;
+            UnsafeCommandBuffer buffer = context.cmd;
             if (copyColor)
             {
                 copier.Copy(buffer, colorAttachment, colorCopy, false);
@@ -31,17 +31,13 @@ namespace LynxRP
                 copier.Copy(buffer, depthAttachment, depthCopy, true);
                 buffer.SetGlobalTexture(depthCopyID, depthCopy);
             }
-            if (CameraRendererCopier.RequiresRenderTargetResetAfterCopy)
-            {
-                buffer.SetRenderTarget(
-                    colorAttachment,
-                    RenderBufferLoadAction.Load, RenderBufferStoreAction.Store,
-                    depthAttachment,
-                    RenderBufferLoadAction.Load, RenderBufferStoreAction.Store
-                );
-            }
-            context.renderContext.ExecuteCommandBuffer(buffer);
-            buffer.Clear();
+            
+            buffer.SetRenderTarget(
+                colorAttachment,
+                RenderBufferLoadAction.Load, RenderBufferStoreAction.Store,
+                depthAttachment,
+                RenderBufferLoadAction.Load, RenderBufferStoreAction.Store
+            );
         }
 
         public static void Record(
@@ -54,22 +50,26 @@ namespace LynxRP
         {
             if (copyColor || copyDepth)
             {
-                using RenderGraphBuilder builder = renderGraph.AddRenderPass(
+                using IUnsafeRenderGraphBuilder builder = renderGraph.AddUnsafePass(
                     sampler.name, out CopyAttachmentsPass pass, sampler
                 );
                 pass.copyColor = copyColor;
                 pass.copyDepth = copyDepth;
                 pass.copier = copier;
 
-                pass.colorAttachment = builder.ReadTexture(textures.colorAttachment);
-                pass.depthAttachment = builder.ReadTexture(textures.depthAttachment);
+                pass.colorAttachment = textures.colorAttachment;
+                builder.UseTexture(pass.colorAttachment);
+                pass.depthAttachment = textures.depthAttachment;
+                builder.UseTexture(pass.depthAttachment);
                 if (copyColor)
                 {
-                    pass.colorCopy = builder.WriteTexture(textures.colorCopy);
+                    pass.colorCopy = textures.colorCopy;
+                    builder.UseTexture(pass.colorCopy, AccessFlags.WriteAll);
                 }
                 if (copyDepth)
                 {
-                    pass.depthCopy = builder.WriteTexture(textures.depthCopy);
+                    pass.depthCopy = textures.depthCopy;
+                    builder.UseTexture(pass.depthCopy, AccessFlags.WriteAll);
                 }
 
                 builder.AllowPassCulling(true);

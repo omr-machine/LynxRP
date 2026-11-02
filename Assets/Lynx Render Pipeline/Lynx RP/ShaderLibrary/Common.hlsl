@@ -56,7 +56,7 @@ float3 DecodeNormal (float4 sample, float scale)
 	#if defined(UNITY_NO_DXT5nm)
 		return normalize(UnpackNormalRGB(sample, scale));
 	#else
-		return normalize(UnpackNormalmapRGorAG(sample, scale));
+		return normalize(UnpackNormalMapRGorAG(sample, scale));
 	#endif
 }
 

@@ -18,11 +18,9 @@ namespace LynxRP
 
         RendererListHandle list;
 
-        void Render(RenderGraphContext context)
+        void Render(UnsafeGraphContext context)
         {
             context.cmd.DrawRendererList(list);
-            context.renderContext.ExecuteCommandBuffer(context.cmd);
-            context.cmd.Clear();
         }
 
         public static void Record(
@@ -37,12 +35,12 @@ namespace LynxRP
         {
             ProfilingSampler sampler = opaque ? samplerOpaque : samplerTransparent;
 
-            using RenderGraphBuilder builder = renderGraph.AddRenderPass(
+            using IUnsafeRenderGraphBuilder builder = renderGraph.AddUnsafePass(
                 sampler.name, out GeometryPass pass, sampler
             );
             
             //PerObjectData perObjectData2 = (PerObjectData)0b_1110_0001_1110;
-            pass.list = builder.UseRendererList(renderGraph.CreateRendererList(
+            pass.list = renderGraph.CreateRendererList(
                 new RendererListDesc(shaderTagIDs, cullingResults, camera)
                 {
                     sortingCriteria = opaque ?
@@ -61,37 +59,38 @@ namespace LynxRP
                         RenderQueueRange.opaque : RenderQueueRange.transparent,
                     renderingLayerMask = renderingLayerMask
                 }
-            ));
+            );
+            builder.UseRendererList(pass.list);
 
-            builder.ReadWriteTexture(textures.colorAttachment);
-            builder.ReadWriteTexture(textures.depthAttachment);
+            builder.UseTexture(textures.colorAttachment, AccessFlags.ReadWrite);
+            builder.UseTexture(textures.depthAttachment, AccessFlags.ReadWrite);
             if(!opaque)
             {
                 if (textures.colorCopy.IsValid())
                 {
-                    builder.ReadTexture(textures.colorCopy);
+                    builder.UseTexture(textures.colorCopy);
                 }
                 if (textures.depthCopy.IsValid())
                 {
-                    builder.ReadTexture(textures.depthCopy);
+                    builder.UseTexture(textures.depthCopy);
                 }
             }
             
-            builder.ReadBuffer(lightData.directionalLightDataBuffer);
-            builder.ReadBuffer(lightData.otherLightDataBuffer);
+            builder.UseBuffer(lightData.directionalLightDataBuffer);
+            builder.UseBuffer(lightData.otherLightDataBuffer);
             // if (lightData.tilesBuffer.IsValid())
             {
-                builder.ReadBuffer(lightData.tilesBuffer);
+                builder.UseBuffer(lightData.tilesBuffer);
             }
-            builder.ReadTexture(lightData.shadowResources.directionalAtlas);
-            builder.ReadTexture(lightData.shadowResources.otherAtlas);
-            builder.ReadBuffer(
+            builder.UseTexture(lightData.shadowResources.directionalAtlas);
+            builder.UseTexture(lightData.shadowResources.otherAtlas);
+            builder.UseBuffer(
                 lightData.shadowResources.directionalShadowCascadesBuffer
             );
-            builder.ReadBuffer(
+            builder.UseBuffer(
                 lightData.shadowResources.directionalShadowMatricesBuffer
             );
-            builder.ReadBuffer(
+            builder.UseBuffer(
                 lightData.shadowResources.otherShadowDataBuffer
             );
 

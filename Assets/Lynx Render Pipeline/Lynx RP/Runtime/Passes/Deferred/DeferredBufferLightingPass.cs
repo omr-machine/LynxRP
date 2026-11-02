@@ -28,8 +28,8 @@ namespace LynxRP
 
         static ShaderTagId[] shaderTagId =
         {
-            new ShaderTagId("CustomLitDeferredLighting"),
-            new ShaderTagId("CustomUnlitDeferredLighting")
+            new("CustomLitDeferredLighting"),
+            new("CustomUnlitDeferredLighting")
         };
 
         TextureHandle 
@@ -41,9 +41,9 @@ namespace LynxRP
 
         Material deferredMaterial;
 
-        void Render(RenderGraphContext context)
+        void Render(UnsafeGraphContext context)
         {
-            CommandBuffer buffer = context.cmd;
+            UnsafeCommandBuffer buffer = context.cmd;
 
             buffer.SetGlobalTexture(debugPositionID, positionBuffer);
             buffer.SetGlobalTexture(debugNormalID, normalBuffer);
@@ -71,10 +71,6 @@ namespace LynxRP
             buffer.DrawProcedural(
                 Matrix4x4.identity, deferredMaterial, 2, MeshTopology.Triangles, 3
             );
-
-
-            context.renderContext.ExecuteCommandBuffer(buffer);
-            buffer.Clear();
         }
 
         public static void Record(
@@ -85,8 +81,8 @@ namespace LynxRP
             
         )
         {
-            using RenderGraphBuilder builder =
-                renderGraph.AddRenderPass(sampler.name, out DeferredBufferLightingPass pass, sampler);
+            using IUnsafeRenderGraphBuilder builder =
+                renderGraph.AddUnsafePass(sampler.name, out DeferredBufferLightingPass pass, sampler);
 
             if (deferredShader != null)
             {
@@ -94,16 +90,24 @@ namespace LynxRP
                 pass.deferredMaterial.hideFlags = HideFlags.HideAndDontSave;
             }
 
-            pass.positionBuffer = builder.ReadTexture(deferredTextures.positionBuffer);
-            pass.normalBuffer = builder.ReadTexture(deferredTextures.normalBuffer);
-            pass.normalInterpolatedBuffer = builder.ReadTexture(deferredTextures.normalInterpolatedBuffer);
-            pass.ormBuffer = builder.ReadTexture(deferredTextures.ormBuffer);
-            pass.extrasBuffer = builder.ReadTexture(deferredTextures.extrasBuffer);
+            pass.positionBuffer = deferredTextures.positionBuffer;
+            pass.normalBuffer = deferredTextures.normalBuffer;
+            pass.normalInterpolatedBuffer = deferredTextures.normalInterpolatedBuffer;
+            pass.ormBuffer = deferredTextures.ormBuffer;
+            pass.extrasBuffer = deferredTextures.extrasBuffer;
+            builder.UseTexture(pass.positionBuffer);
+            builder.UseTexture(pass.normalBuffer);
+            builder.UseTexture(pass.normalInterpolatedBuffer);
+            builder.UseTexture(pass.ormBuffer);
+            builder.UseTexture(pass.extrasBuffer);
             
-            pass.depthBuffer = builder.ReadWriteTexture(textures.depthAttachment);
-            pass.albedoBuffer = builder.ReadTexture(textures.colorAttachment);
+            pass.depthBuffer = textures.depthAttachment;
+            pass.albedoBuffer = textures.colorAttachment;
+            builder.UseTexture(pass.depthBuffer, AccessFlags.ReadWrite);
+            builder.UseTexture(pass.albedoBuffer);
 
-            pass.lightingBuffer = builder.ReadWriteTexture(deferredTextures.lightingBuffer);
+            pass.lightingBuffer = deferredTextures.lightingBuffer;
+            builder.UseTexture(pass.lightingBuffer, AccessFlags.ReadWrite);
 
             builder.AllowPassCulling(false);
             builder.SetRenderFunc<DeferredBufferLightingPass>(

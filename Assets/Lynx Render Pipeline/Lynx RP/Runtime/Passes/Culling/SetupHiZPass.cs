@@ -13,9 +13,9 @@ namespace LynxRP
         TextureHandle hiZDepthRT;
         TextureHandle colorAttachment, depthAttachment;
 
-        void Render(RenderGraphContext context)
+        void Render(UnsafeGraphContext context)
         {
-            CommandBuffer buffer = context.cmd;
+            UnsafeCommandBuffer buffer = context.cmd;
             
             buffer.SetRenderTarget(hiZDepthRT);
             buffer.ClearRenderTarget(true, true, Color.black);
@@ -24,8 +24,6 @@ namespace LynxRP
                 colorAttachment, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store,
                 depthAttachment, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store
             );
-            context.renderContext.ExecuteCommandBuffer(buffer);
-            buffer.Clear();
         }
 
         public static HiZData Record(
@@ -34,8 +32,8 @@ namespace LynxRP
             in CameraRendererTextures textures
         )
         {
-            using RenderGraphBuilder builder =
-                renderGraph.AddRenderPass(sampler.name, out SetupHiZPass pass, sampler);
+            using IUnsafeRenderGraphBuilder builder =
+                renderGraph.AddUnsafePass(sampler.name, out SetupHiZPass pass, sampler);
             
             var desc = new TextureDesc(attachmentSize.x, attachmentSize.y)
             {
@@ -47,7 +45,8 @@ namespace LynxRP
                 useMipMap = true,
                 autoGenerateMips = false
             };
-            TextureHandle hiZDepthRT = builder.WriteTexture(renderGraph.CreateTexture(desc));
+            TextureHandle hiZDepthRT = renderGraph.CreateTexture(desc);
+            builder.UseTexture(hiZDepthRT, AccessFlags.WriteAll);
 
             desc.name = "HiZ Interframe Texture";
             desc.useMipMap = false;

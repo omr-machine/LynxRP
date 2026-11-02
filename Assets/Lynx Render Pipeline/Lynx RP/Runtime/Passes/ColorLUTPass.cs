@@ -38,7 +38,7 @@ namespace LynxRP
 
         TextureHandle colorLUT;
 
-        void ConfigureColorAdjustments(CommandBuffer buffer, PostFXSettings settings)
+        void ConfigureColorAdjustments(UnsafeCommandBuffer buffer, PostFXSettings settings)
         {
             ColorAdjustmentsSettings colorAdjustments = settings.ColorAdjustments;
             buffer.SetGlobalVector(colorAdjustmentsId, new Vector4(
@@ -50,7 +50,7 @@ namespace LynxRP
             buffer.SetGlobalColor(colorFilterId, colorAdjustments.colorFilter.linear);
         }
 
-        void ConfigureWhiteBalance(CommandBuffer buffer, PostFXSettings settings)
+        void ConfigureWhiteBalance(UnsafeCommandBuffer buffer, PostFXSettings settings)
         {
             WhiteBalanceSettings whiteBalance = settings.WhiteBalance;
             buffer.SetGlobalVector(whiteBalanceId, ColorUtils.ColorBalanceToLMSCoeffs(
@@ -58,7 +58,7 @@ namespace LynxRP
             ));
         }
 
-        void ConfigureSplitToning(CommandBuffer buffer, PostFXSettings settings)
+        void ConfigureSplitToning(UnsafeCommandBuffer buffer, PostFXSettings settings)
         {
             SplitToningSettings splitToning = settings.SplitToning;
             Color splitColor = splitToning.shadows;
@@ -67,7 +67,7 @@ namespace LynxRP
             buffer.SetGlobalColor(splitToningHighlightsId, splitToning.highlights);
         }
 
-        void ConfigureChannelMixer(CommandBuffer buffer, PostFXSettings settings)
+        void ConfigureChannelMixer(UnsafeCommandBuffer buffer, PostFXSettings settings)
         {
             ChannelMixerSettings channelMixer = settings.ChannelMixer;
             buffer.SetGlobalVector(channelMixerRedId, channelMixer.red);
@@ -75,7 +75,7 @@ namespace LynxRP
             buffer.SetGlobalVector(channelMixerBlueId, channelMixer.blue);
         }
 
-        void ConfigureShadowsMidtonesHighlights(CommandBuffer buffer, PostFXSettings settings)
+        void ConfigureShadowsMidtonesHighlights(UnsafeCommandBuffer buffer, PostFXSettings settings)
         {
             ShadowsMidtonesHighlightsSettings smh = settings.ShadowsMidtonesHighlights;
             buffer.SetGlobalColor(smhShadowsId, smh.shadows.linear);
@@ -86,10 +86,10 @@ namespace LynxRP
             ));
         }
 
-        void Render(RenderGraphContext context)
+        void Render(UnsafeGraphContext context)
         {
             PostFXSettings settings = stack.Settings;
-            CommandBuffer buffer = context.cmd;
+            UnsafeCommandBuffer buffer = context.cmd;
             ConfigureColorAdjustments(buffer, settings);
             ConfigureWhiteBalance(buffer, settings);
             ConfigureSplitToning(buffer, settings);
@@ -125,7 +125,7 @@ namespace LynxRP
             int colorLUTResolution
         )
         {
-            using RenderGraphBuilder builder = renderGraph.AddRenderPass(
+            using IUnsafeRenderGraphBuilder builder = renderGraph.AddUnsafePass(
                 sampler.name, out ColorLUTPass pass, sampler
             );
             pass.stack = stack;
@@ -138,7 +138,9 @@ namespace LynxRP
                 colorFormat = colorFormat,
                 name = "Color LUT"
             };
-            pass.colorLUT = builder.WriteTexture(renderGraph.CreateTexture(desc));
+            pass.colorLUT = renderGraph.CreateTexture(desc);
+            
+            builder.UseTexture(pass.colorLUT, AccessFlags.WriteAll);
             builder.SetRenderFunc<ColorLUTPass>(
                 static (pass, context) => pass.Render(context)
             );

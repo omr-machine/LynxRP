@@ -38,9 +38,9 @@ namespace LynxRP
 
         const uint numThreadsMax = 16;
 
-        void Render(RenderGraphContext context)
+        void Render(UnsafeGraphContext context)
         {
-            CommandBuffer buffer = context.cmd;
+            UnsafeCommandBuffer buffer = context.cmd;
             
             // buffer.SetGlobalTexture(depthID, depthAttachment);
             buffer.SetGlobalTexture(debugDepthProjectedID, hiZDepthRT);
@@ -90,9 +90,6 @@ namespace LynxRP
                 colorAttachment, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store,
                 depthAttachment, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store
             );
-
-            context.renderContext.ExecuteCommandBuffer(buffer);
-            buffer.Clear();
         }
 
         public static HiZData Record(
@@ -104,8 +101,8 @@ namespace LynxRP
             in CameraRendererTextures textures
         )
         {
-            using RenderGraphBuilder builder =
-                renderGraph.AddRenderPass(sampler.name, out HiZPass pass, sampler);
+            using IUnsafeRenderGraphBuilder builder =
+                renderGraph.AddUnsafePass(sampler.name, out HiZPass pass, sampler);
 
             pass.attachmentSize = attachmentSize;
             
@@ -116,10 +113,14 @@ namespace LynxRP
             }
             
             pass.csHiZShader = csHiZShader;
-            pass.hiZDepthRT = builder.ReadWriteTexture(hiZData.hiZDepthRT);
+            pass.hiZDepthRT = hiZData.hiZDepthRT;
             
-            pass.depthAttachment = builder.ReadTexture(textures.depthAttachment);
-            pass.colorAttachment = builder.ReadTexture(textures.colorAttachment);
+            pass.depthAttachment = textures.depthAttachment;
+            pass.colorAttachment = textures.colorAttachment;
+
+            builder.UseTexture(hiZData.hiZDepthRT, AccessFlags.ReadWrite);
+            builder.UseTexture(pass.depthAttachment);
+            builder.UseTexture(pass.colorAttachment);
 
             builder.AllowPassCulling(false);
             builder.SetRenderFunc<HiZPass>(

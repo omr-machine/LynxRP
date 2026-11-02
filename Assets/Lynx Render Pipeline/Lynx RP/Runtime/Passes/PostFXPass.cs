@@ -35,7 +35,7 @@ namespace LynxRP
 
         TextureHandle colorSource, colorGradingResult, scaledResult;
 
-        void ConfigureFXAA(CommandBuffer buffer)
+        void ConfigureFXAA(UnsafeCommandBuffer buffer)
         {
             CameraBufferSettings.FXAA fxaa = stack.BufferSettings.fxaa;
         
@@ -53,13 +53,13 @@ namespace LynxRP
             ));
         }
 
-        void Render(RenderGraphContext context)
+        void Render(UnsafeGraphContext context)
         {
-            CommandBuffer buffer = context.cmd;
+            UnsafeCommandBuffer buffer = context.cmd;
             buffer.SetGlobalFloat(finalSrcBlendId, 1f);
             buffer.SetGlobalFloat(finalDstBlendId, 0f);
 
-            RenderTargetIdentifier finalSource;
+            TextureHandle finalSource;
             Pass finalPass;
             if(stack.BufferSettings.fxaa.enabled)
             {
@@ -90,9 +90,6 @@ namespace LynxRP
                 );
                 stack.DrawFinal(buffer, scaledResult, Pass.FinalRescale);
             }
-            
-            context.renderContext.ExecuteCommandBuffer(buffer);
-            buffer.Clear();
         }
 
         public static void Record(
@@ -113,13 +110,16 @@ namespace LynxRP
                 renderGraph, stack, colorLUTResolution
             );
 
-            using RenderGraphBuilder builder = renderGraph.AddRenderPass(
+            using IUnsafeRenderGraphBuilder builder = renderGraph.AddUnsafePass(
                 finalSampler.name, out PostFXPass pass, finalSampler
             );
+
             pass.keepAlpha = keepAlpha;
             pass.stack = stack;
-            pass.colorSource = builder.ReadTexture(colorSource);
-            builder.ReadTexture(colorLut);
+            pass.colorSource = colorSource;
+
+            builder.UseTexture(colorSource);
+            builder.UseTexture(colorLut);
 
             if (stack.BufferSize.x == stack.Camera.pixelWidth)
             {

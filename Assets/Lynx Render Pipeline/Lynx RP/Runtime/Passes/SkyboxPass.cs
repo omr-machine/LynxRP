@@ -10,11 +10,9 @@ namespace LynxRP
 
         RendererListHandle list;
 
-        void Render(RenderGraphContext context)
+        void Render(UnsafeGraphContext context)
         {
             context.cmd.DrawRendererList(list);
-            context.renderContext.ExecuteCommandBuffer(context.cmd);
-            context.cmd.Clear();   
         }
 
         public static void Record(
@@ -25,15 +23,15 @@ namespace LynxRP
         {
             if (camera.clearFlags == CameraClearFlags.Skybox)
             {
-                using RenderGraphBuilder builder = renderGraph.AddRenderPass(
+                using IUnsafeRenderGraphBuilder builder = renderGraph.AddUnsafePass(
                     sampler.name, out SkyboxPass pass, sampler
                 );
 
-                pass.list = builder.UseRendererList(
-                    renderGraph.CreateSkyboxRendererList(camera)
-                );
-                builder.ReadWriteTexture(textures.colorAttachment);
-                builder.ReadTexture(textures.depthAttachment);
+                pass.list = renderGraph.CreateSkyboxRendererList(camera);
+                builder.UseRendererList(pass.list);
+                
+                builder.UseTexture(textures.colorAttachment, AccessFlags.ReadWrite);
+                builder.UseTexture(textures.depthAttachment);
 
                 builder.AllowPassCulling(false);
                 builder.SetRenderFunc<SkyboxPass>(

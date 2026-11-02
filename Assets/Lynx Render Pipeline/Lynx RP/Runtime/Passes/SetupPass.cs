@@ -22,10 +22,10 @@ namespace LynxRP
 
         bool debugCull;
 
-        void Render(RenderGraphContext context)
+        void Render(UnsafeGraphContext context)
         {
-            context.renderContext.SetupCameraProperties(camera);
-            CommandBuffer cmd = context.cmd;
+            UnsafeCommandBuffer cmd = context.cmd;
+            cmd.SetupCameraProperties(camera);
 
             cmd.SetRenderTarget(
                 colorAttachment,
@@ -49,9 +49,6 @@ namespace LynxRP
                     cullSettings = (int)crpCamera.Settings.cullSettings;
             }
             SetKeywords(cmd, keywordCamera, attachmentSize, cullSettings);
-
-            context.renderContext.ExecuteCommandBuffer(cmd);
-            cmd.Clear();
         }
 
         public static CameraRendererTextures Record(
@@ -66,8 +63,8 @@ namespace LynxRP
             bool debugCull
         )
         {
-            using RenderGraphBuilder builder =
-                renderGraph.AddRenderPass(sampler.name, out SetupPass pass, sampler);
+            using IUnsafeRenderGraphBuilder builder =
+                renderGraph.AddUnsafePass(sampler.name, out SetupPass pass, sampler);
             
             pass.attachmentSize = attachmentSize;
             pass.camera = camera;
@@ -81,6 +78,7 @@ namespace LynxRP
             {
                 pass.clearFlags = CameraClearFlags.Color;
             }
+
             var desc = new TextureDesc(attachmentSize.x, attachmentSize.y)
             {
                 colorFormat = SystemInfo.GetGraphicsFormat(
@@ -89,17 +87,24 @@ namespace LynxRP
                 name = "Color Attachment"
             };
             desc.msaaSamples = msaaSamples;
+
             TextureHandle colorAttachment = pass.colorAttachment = 
-                builder.WriteTexture(renderGraph.CreateTexture(desc)); 
+                renderGraph.CreateTexture(desc);
+            builder.UseTexture(colorAttachment, AccessFlags.WriteAll);
+
             if (copyColor)
             {
                 desc.name = "Color Copy";
                 colorCopy = renderGraph.CreateTexture(desc);
             }
+
             desc.depthBufferBits = DepthBits.Depth32;
             desc.name = "Depth Attachment";
+
             TextureHandle depthAttachment = pass.depthAttachment = 
-                builder.WriteTexture(renderGraph.CreateTexture(desc));
+                renderGraph.CreateTexture(desc);
+            builder.UseTexture(depthAttachment, AccessFlags.WriteAll);
+
             if (copyDepth)
             {
                 desc.name = "Depth Copy";

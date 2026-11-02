@@ -70,7 +70,7 @@ namespace LynxRP
 
         int shadowedDirLightCount, shadowedOtherLightCount;
         
-        CommandBuffer buffer;
+        UnsafeCommandBuffer buffer;
 
         CullingResults cullingResults;
         ShadowSettings settings;
@@ -210,7 +210,7 @@ namespace LynxRP
 
         public ShadowResources GetResources(
             RenderGraph renderGraph,
-            RenderGraphBuilder builder,
+            IUnsafeRenderGraphBuilder builder,
             ScriptableRenderContext context
         )
         {
@@ -221,52 +221,63 @@ namespace LynxRP
                 isShadowMap = true,
                 name = "Directional Shadow Atlas"
             };
-            directionalAtlas = shadowedDirLightCount > 0 ?
-                builder.WriteTexture(renderGraph.CreateTexture(desc)) :
-                renderGraph.defaultResources.defaultShadowTexture;
 
-            directionalShadowCascadesBuffer = builder.WriteBuffer(
-                renderGraph.CreateBuffer(
-                    new BufferDesc
-                    {
-                        name = "Shadow Cascades",
-                        stride = DirectionalShadowCascade.stride,
-                        count = maxCascades,
-                        target = GraphicsBuffer.Target.Structured
-                    }
-                )
-            );
+            if (shadowedDirLightCount > 0)
+            {
+                directionalAtlas = renderGraph.CreateTexture(desc);
+                builder.UseTexture(directionalAtlas, AccessFlags.WriteAll);
+            }
+            else
+            {
+                directionalAtlas = renderGraph.defaultResources.defaultShadowTexture;
+            }
 
-            directionalShadowMatricesBuffer = builder.WriteBuffer(
-                renderGraph.CreateBuffer(
-                    new BufferDesc
-                    {
-                        name = "Directional Shadow Matrices",
-                        stride = 4 * 16,
-                        count = maxShadowedDirLightCount * maxCascades,
-                        target = GraphicsBuffer.Target.Structured
-                    }
-                )
+            directionalShadowCascadesBuffer = renderGraph.CreateBuffer(
+                new BufferDesc
+                {
+                    name = "Shadow Cascades",
+                    stride = DirectionalShadowCascade.stride,
+                    count = maxCascades,
+                    target = GraphicsBuffer.Target.Structured
+                }
             );
+            builder.UseBuffer(directionalShadowCascadesBuffer, AccessFlags.WriteAll);
+
+            directionalShadowMatricesBuffer = renderGraph.CreateBuffer(
+                new BufferDesc
+                {
+                    name = "Directional Shadow Matrices",
+                    stride = 4 * 16,
+                    count = maxShadowedDirLightCount * maxCascades,
+                    target = GraphicsBuffer.Target.Structured
+                }
+            );
+            builder.UseBuffer(directionalShadowMatricesBuffer, AccessFlags.WriteAll);
 
             atlasSize = (int)settings.other.atlasSize;
             desc.width = desc.height = atlasSize;
             desc.name = "Other Shadow Atlas";
-            otherAtlas = shadowedOtherLightCount > 0 ?
-                    builder.WriteTexture(renderGraph.CreateTexture(desc)) :
-                    renderGraph.defaultResources.defaultShadowTexture;
 
-            otherShadowDataBuffer = builder.WriteBuffer(
-                renderGraph.CreateBuffer(
-                    new BufferDesc
-                    {
-                        name = "Other Shadow Data",
-                        stride = OtherShadowData.stride,
-                        count = maxShadowedOtherLightCount,
-                        target = GraphicsBuffer.Target.Structured
-                    }
-                )
+            if (shadowedOtherLightCount > 0)
+            {
+                otherAtlas = renderGraph.CreateTexture(desc);
+                builder.UseTexture(otherAtlas, AccessFlags.WriteAll);
+            }
+            else
+            {
+                otherAtlas = renderGraph.defaultResources.defaultShadowTexture;
+            }
+
+            otherShadowDataBuffer = renderGraph.CreateBuffer(
+                new BufferDesc
+                {
+                    name = "Other Shadow Data",
+                    stride = OtherShadowData.stride,
+                    count = maxShadowedOtherLightCount,
+                    target = GraphicsBuffer.Target.Structured
+                }
             );
+            builder.UseBuffer(otherShadowDataBuffer, AccessFlags.WriteAll);
 
             BuildRendererLists(renderGraph, builder, context);
 
@@ -281,7 +292,7 @@ namespace LynxRP
 
         void BuildRendererLists
         (
-            RenderGraph renderGraph, RenderGraphBuilder builder, ScriptableRenderContext context)
+            RenderGraph renderGraph, IUnsafeRenderGraphBuilder builder, ScriptableRenderContext context)
         {
             if (shadowedDirLightCount > 0)
             {
@@ -331,7 +342,7 @@ namespace LynxRP
         }
 
         void BuildDirectionalRendererList(
-            int index, RenderGraph renderGraph, RenderGraphBuilder builder)
+            int index, RenderGraph renderGraph, IUnsafeRenderGraphBuilder builder)
         {
             ShadowedDirectionalLight light = shadowedDirectionalLights[index];
             var shadowSettings = new ShadowDrawingSettings(
@@ -359,8 +370,8 @@ namespace LynxRP
                         splitData.cullingSphere,
                         directionalTileSize, settings.DirectionalFilterSize);
                 }
-                info.handle = builder.UseRendererList(
-                    renderGraph.CreateShadowRendererList(ref shadowSettings));
+                info.handle = renderGraph.CreateShadowRendererList(ref shadowSettings);
+                builder.UseRendererList(info.handle);
 
                 // Debug.Log(projectionMatrix);
                 // Debug.Log(viewMatrix);
@@ -377,7 +388,7 @@ namespace LynxRP
         }
 
         void BuildSpotShadowsRendererList(
-            int index, RenderGraph renderGraph, RenderGraphBuilder builder)
+            int index, RenderGraph renderGraph, IUnsafeRenderGraphBuilder builder)
         {
             ShadowedOtherLight light = shadowedOtherLights[index];
             var shadowSettings = new ShadowDrawingSettings(
@@ -392,8 +403,8 @@ namespace LynxRP
 
             int splitOffset = light.visibleLightIndex * maxTilesPerLight;
             shadowSplitDataPerLight[splitOffset] = splitData;
-            info.handle = builder.UseRendererList(
-                renderGraph.CreateShadowRendererList(ref shadowSettings));
+            info.handle = renderGraph.CreateShadowRendererList(ref shadowSettings);
+            builder.UseRendererList(info.handle);
             cullingInfoPerLight[light.visibleLightIndex] =
                 new LightShadowCasterCullingInfo
                 {
@@ -403,7 +414,7 @@ namespace LynxRP
         }
 
         void BuildPointShadowsRendererList(
-            int index, RenderGraph renderGraph, RenderGraphBuilder builder)
+            int index, RenderGraph renderGraph, IUnsafeRenderGraphBuilder builder)
         {
             ShadowedOtherLight light = shadowedOtherLights[index];
             var shadowSettings = new ShadowDrawingSettings(
@@ -424,8 +435,8 @@ namespace LynxRP
                     out info.view, out info.projection,
                     out ShadowSplitData splitData);
                 shadowSplitDataPerLight[splitOffset + i] = splitData;
-                info.handle = builder.UseRendererList(
-                    renderGraph.CreateShadowRendererList(ref shadowSettings));
+                info.handle = renderGraph.CreateShadowRendererList(ref shadowSettings);
+                builder.UseRendererList(info.handle);
             }
 
             cullingInfoPerLight[light.visibleLightIndex] =
@@ -436,9 +447,9 @@ namespace LynxRP
                 };
         }
 
-        public void Render(RenderGraphContext context)
+        public void Render(UnsafeCommandBuffer buffer)
         {
-            buffer = context.cmd;
+            this.buffer = buffer;
 
             if (shadowedDirLightCount > 0)
             {
@@ -474,9 +485,6 @@ namespace LynxRP
             );
 
             buffer.SetGlobalVector(shadowAtlasSizeId, atlasSizes);
-
-            context.renderContext.ExecuteCommandBuffer(buffer);
-            buffer.Clear();
         }
 
         void RenderDirectionalShadows()

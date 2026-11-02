@@ -61,9 +61,9 @@ namespace LynxRP
             // Debug.Log(voteGroups + " " + scanGroups + " " + sumGroups);
         }
 
-        void Render(RenderGraphContext context)
+        void Render(UnsafeGraphContext context)
         {
-            CommandBuffer buffer = context.cmd;
+            UnsafeCommandBuffer buffer = context.cmd;
 
             if (skipPass)
                 return;
@@ -103,9 +103,6 @@ namespace LynxRP
             buffer.SetGlobalTexture(cullDebugId, cullDebug);
             if (cullHiZ)
                 buffer.SetGlobalTexture(hiZBufferId, hiZBuffer);
-
-            context.renderContext.ExecuteCommandBuffer(buffer);
-            buffer.Clear();
         }
 
         public static void Record(
@@ -121,7 +118,7 @@ namespace LynxRP
         {
             ProfilingSampler sampler = samplerCull;
 
-            using RenderGraphBuilder builder = renderGraph.AddRenderPass(
+            using IUnsafeRenderGraphBuilder builder = renderGraph.AddUnsafePass(
                 sampler.name, out GPUDrivenTriCullPass pass, sampler
             );
 
@@ -141,12 +138,17 @@ namespace LynxRP
 
             pass.csCullShader = csCullShader;
 
-            pass.indexBuffer = builder.WriteBuffer(gpuDrivenData.indexBuffer);
-            pass.voteBuffer = builder.WriteBuffer(gpuDrivenData.voteBuffer);
+            pass.indexBuffer = gpuDrivenData.indexBuffer;
+            pass.voteBuffer = gpuDrivenData.voteBuffer;
+            builder.UseBuffer(pass.indexBuffer, AccessFlags.WriteAll);
+            builder.UseBuffer(pass.voteBuffer, AccessFlags.WriteAll);
 
-            pass.triangleBuffer = builder.WriteBuffer(gpuDrivenData.triangleBuffer);
-            pass.bboxBuffer = builder.WriteBuffer(gpuDrivenData.bboxBuffer);
-            pass.quadBuffer = builder.WriteBuffer(gpuDrivenData.quadBuffer);
+            pass.triangleBuffer = gpuDrivenData.triangleBuffer;
+            pass.bboxBuffer = gpuDrivenData.bboxBuffer;
+            pass.quadBuffer = gpuDrivenData.quadBuffer;
+            builder.UseBuffer(pass.triangleBuffer, AccessFlags.WriteAll);
+            builder.UseBuffer(pass.bboxBuffer, AccessFlags.WriteAll);
+            builder.UseBuffer(pass.quadBuffer, AccessFlags.WriteAll);
 
             var desc = new TextureDesc(attachmentSize.x, attachmentSize.y)
             {
@@ -155,7 +157,8 @@ namespace LynxRP
                 enableRandomWrite = true
             };
             desc.clearColor = Color.black;
-            pass.cullDebug = builder.WriteTexture(renderGraph.CreateTexture(desc));
+            pass.cullDebug = renderGraph.CreateTexture(desc);
+            builder.UseTexture(pass.cullDebug, AccessFlags.WriteAll);
 
             pass.camera = Camera.main;
             pass.resolution = attachmentSize;
@@ -163,11 +166,12 @@ namespace LynxRP
             pass.cullHiZ = (cameraSettings.cullSettings & CameraSettings.CullSettings.HiZ) != 0;
             if (pass.cullHiZ)
             {
-                pass.hiZBuffer = builder.ReadTexture(hiZData.hiZDepthRT);
+                pass.hiZBuffer = hiZData.hiZDepthRT;
+                builder.UseTexture(pass.hiZBuffer);
             }
 
-            builder.ReadWriteTexture(textures.colorAttachment);
-            builder.ReadWriteTexture(textures.depthAttachment);
+            builder.UseTexture(textures.colorAttachment, AccessFlags.ReadWrite);
+            builder.UseTexture(textures.depthAttachment, AccessFlags.ReadWrite);
 
             builder.SetRenderFunc<GPUDrivenTriCullPass>(
                 static (pass, context) => pass.Render(context)

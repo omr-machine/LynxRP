@@ -26,9 +26,9 @@ namespace LynxRP
 
         int width, height;
 
-        void Render(RenderGraphContext context)
+        void Render(UnsafeGraphContext context)
         {
-            CommandBuffer buffer = context.cmd;
+            UnsafeCommandBuffer buffer = context.cmd;
             
             int fillMSAAWidth = width * 2;
             int fillMSAAHeight = height * 2;
@@ -55,8 +55,6 @@ namespace LynxRP
                 colorAttachment, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store,
                 depthAttachment, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store
             );
-            context.renderContext.ExecuteCommandBuffer(buffer);
-            buffer.Clear();
         }
 
 
@@ -68,11 +66,14 @@ namespace LynxRP
             in CameraRendererTextures textures
         )
         {
-            using RenderGraphBuilder builder =
-                renderGraph.AddRenderPass(sampler.name, out MSAAFillPass pass, sampler);
+            using IUnsafeRenderGraphBuilder builder =
+                renderGraph.AddUnsafePass(sampler.name, out MSAAFillPass pass, sampler);
 
-            pass.colorAttachment = builder.ReadTexture(textures.colorAttachment);
-            pass.depthAttachment = builder.ReadTexture(textures.depthAttachment);
+            pass.colorAttachment = textures.colorAttachment;
+            pass.depthAttachment = textures.depthAttachment;
+
+            builder.UseTexture(pass.colorAttachment);
+            builder.UseTexture(pass.depthAttachment);
 
             pass.msaaFillShader = msaaFillShader;
             if (pass.msaaFillShader != null)
@@ -81,12 +82,16 @@ namespace LynxRP
                 pass.msaaFillMaterial.hideFlags = HideFlags.HideAndDontSave;
             }
 
-            pass.msaaStencil = builder.ReadWriteTexture(msaaTextures.msaaStencil);
+            pass.msaaStencil = msaaTextures.msaaStencil;
 
             pass.width = attachmentSize.x;
             pass.height = attachmentSize.y;
-            pass.msaaFill = builder.WriteTexture(msaaTextures.msaaFill);
-            pass.msaaFillDepth = builder.WriteTexture(msaaTextures.msaaFillDepth);
+            pass.msaaFill = msaaTextures.msaaFill;
+            pass.msaaFillDepth = msaaTextures.msaaFillDepth;
+
+            builder.UseTexture(pass.msaaStencil, AccessFlags.ReadWrite);
+            builder.UseTexture(pass.msaaFill, AccessFlags.WriteAll);
+            builder.UseTexture(pass.msaaFillDepth, AccessFlags.WriteAll);
 
             builder.AllowPassCulling(false);
             builder.SetRenderFunc<MSAAFillPass>(

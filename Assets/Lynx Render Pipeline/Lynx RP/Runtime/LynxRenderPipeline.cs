@@ -27,8 +27,6 @@ namespace LynxRP
             interFrameData = new InterFrameData();
         }
 
-        protected override void Render(ScriptableRenderContext context, Camera[] cameras) { }
-
         protected override void Render(ScriptableRenderContext context, List<Camera> cameras)
         {
             if (settings.pipelineType == LynxRenderPipelineSettings.PipelineType.GPUDriven)

@@ -23,7 +23,7 @@ namespace LynxRP
 
         CameraClearFlags clearFlags;
 
-        void ClearMRTs(ref CommandBuffer cmd)
+        void ClearMRTs(ref UnsafeCommandBuffer cmd)
         {
             for (int i = 1; i < bufferColorIDs.Length; i++)
             {
@@ -37,10 +37,10 @@ namespace LynxRP
             }
         }
 
-        void Render(RenderGraphContext context)
+        void Render(UnsafeGraphContext context)
         {
-            context.renderContext.SetupCameraProperties(camera);
-            CommandBuffer cmd = context.cmd;
+            UnsafeCommandBuffer cmd = context.cmd;
+            cmd.SetupCameraProperties(camera);
 
             bufferColorIDs[0] = albedoBuffer;
             bufferColorIDs[1] = positionBuffer;
@@ -52,9 +52,6 @@ namespace LynxRP
 
             ClearMRTs(ref cmd);
             cmd.SetRenderTarget(bufferColorIDs, depthBuffer);
-
-            context.renderContext.ExecuteCommandBuffer(cmd);
-            cmd.Clear();
         }
 
         public static DeferredRenderTextures Record(
@@ -65,8 +62,8 @@ namespace LynxRP
             in CameraRendererTextures textures
         )
         {
-            using RenderGraphBuilder builder =
-                renderGraph.AddRenderPass(sampler.name, out SetupDeferredPass pass, sampler);
+            using IUnsafeRenderGraphBuilder builder =
+                renderGraph.AddUnsafePass(sampler.name, out SetupDeferredPass pass, sampler);
             pass.camera = camera;
             pass.clearFlags = camera.clearFlags;
             
@@ -85,22 +82,31 @@ namespace LynxRP
                 ),
                 name = "Position Buffer"
             };
-            positionBuffer = pass.positionBuffer = builder.WriteTexture(renderGraph.CreateTexture(desc));
+            positionBuffer = pass.positionBuffer = renderGraph.CreateTexture(desc);
+            builder.UseTexture(positionBuffer, AccessFlags.WriteAll);
 
             desc.name = "Normal Buffer";
-            normalBuffer = pass.normalBuffer = builder.WriteTexture(renderGraph.CreateTexture(desc));
+            normalBuffer = pass.normalBuffer = renderGraph.CreateTexture(desc);
             desc.name = "Normal Interpolated Buffer";
-            normalInterpolatedBuffer = pass.normalInterpolatedBuffer = builder.WriteTexture(renderGraph.CreateTexture(desc));
+            normalInterpolatedBuffer = pass.normalInterpolatedBuffer = renderGraph.CreateTexture(desc);
+            builder.UseTexture(normalBuffer, AccessFlags.WriteAll);
+            builder.UseTexture(normalInterpolatedBuffer, AccessFlags.WriteAll);
 
             desc.name = "ORM Buffer";
-            ormBuffer = pass.ormBuffer = builder.WriteTexture(renderGraph.CreateTexture(desc));
+            ormBuffer = pass.ormBuffer = renderGraph.CreateTexture(desc);
             desc.name = "Lighting Buffer";
-            lightingBuffer = pass.lightingBuffer = builder.WriteTexture(renderGraph.CreateTexture(desc));
+            lightingBuffer = pass.lightingBuffer = renderGraph.CreateTexture(desc);
             desc.name = "Extras Buffer";
-            extrasBuffer = pass.extrasBuffer = builder.WriteTexture(renderGraph.CreateTexture(desc));
+            extrasBuffer = pass.extrasBuffer = renderGraph.CreateTexture(desc);
+            builder.UseTexture(ormBuffer, AccessFlags.WriteAll);
+            builder.UseTexture(lightingBuffer, AccessFlags.WriteAll);
+            builder.UseTexture(extrasBuffer, AccessFlags.WriteAll);
 
-            pass.depthBuffer = builder.ReadTexture(textures.colorAttachment);
-            pass.albedoBuffer = builder.ReadTexture(textures.depthAttachment);
+            pass.depthBuffer = textures.colorAttachment;
+            pass.albedoBuffer = textures.depthAttachment;
+
+            builder.UseTexture(pass.depthBuffer);
+            builder.UseTexture(pass.albedoBuffer);
             
             builder.AllowPassCulling(false);
             builder.SetRenderFunc<SetupDeferredPass>(

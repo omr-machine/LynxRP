@@ -40,9 +40,9 @@ namespace LynxRP
         
         BufferHandle offsetSizesBuffer, matricesBuffer, aabbBuffer;
         
-        void Render(RenderGraphContext context)
+        void Render(UnsafeGraphContext context)
         {
-            CommandBuffer buffer = context.cmd;
+            UnsafeCommandBuffer buffer = context.cmd;
 
             if (skipPass)
                 return;
@@ -75,9 +75,6 @@ namespace LynxRP
             buffer.SetComputeBufferParam(csTransformPositionShader, 1, offsetSizesBufferId, offsetSizesBuffer);
             buffer.SetComputeBufferParam(csTransformPositionShader, 1, aabbBufferId, aabbBuffer);
             buffer.DispatchCompute(csTransformPositionShader, 1, voteGroups, 1, 1);
-
-            context.renderContext.ExecuteCommandBuffer(buffer);
-            buffer.Clear();
         }
 
         public static void Record(
@@ -90,7 +87,7 @@ namespace LynxRP
         {
             ProfilingSampler sampler = samplerCull;
 
-            using RenderGraphBuilder builder = renderGraph.AddRenderPass(
+            using IUnsafeRenderGraphBuilder builder = renderGraph.AddUnsafePass(
                 sampler.name, out GPUDrivenInitPipelinePass pass, sampler
             );
             
@@ -110,15 +107,20 @@ namespace LynxRP
             
             pass.csTransformPositionShader = csTransformPositionShader;
 
-            pass.indexBuffer = builder.WriteBuffer(gpuDrivenData.indexBuffer);
-            pass.voteBuffer = builder.WriteBuffer(gpuDrivenData.voteBuffer);
+            pass.indexBuffer = gpuDrivenData.indexBuffer;
+            pass.voteBuffer = gpuDrivenData.voteBuffer;
+            builder.UseBuffer(pass.indexBuffer, AccessFlags.WriteAll);
+            builder.UseBuffer(pass.voteBuffer, AccessFlags.WriteAll);
 
-            pass.offsetSizesBuffer = builder.WriteBuffer(gpuDrivenData.offsetSizesBuffer);
-            pass.matricesBuffer = builder.WriteBuffer(gpuDrivenData.matricesBuffer);
-            pass.aabbBuffer = builder.WriteBuffer(gpuDrivenData.aabbBuffer);
+            pass.offsetSizesBuffer = gpuDrivenData.offsetSizesBuffer;
+            pass.matricesBuffer = gpuDrivenData.matricesBuffer;
+            pass.aabbBuffer = gpuDrivenData.aabbBuffer;
+            builder.UseBuffer(pass.offsetSizesBuffer, AccessFlags.WriteAll);
+            builder.UseBuffer(pass.matricesBuffer, AccessFlags.WriteAll);
+            builder.UseBuffer(pass.aabbBuffer, AccessFlags.WriteAll);
             
-            builder.ReadWriteTexture(textures.colorAttachment);
-            builder.ReadWriteTexture(textures.depthAttachment);
+            builder.UseTexture(textures.colorAttachment, AccessFlags.ReadWrite);
+            builder.UseTexture(textures.depthAttachment, AccessFlags.ReadWrite);
 
             builder.SetRenderFunc<GPUDrivenInitPipelinePass>(
                 static (pass, context) => pass.Render(context)
